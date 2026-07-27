@@ -9,6 +9,8 @@ import (
 	"bbs-go/internal/pkg/ginx"
 	"bbs-go/internal/pkg/locales"
 	"fmt"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -27,29 +29,70 @@ import (
 	"bbs-go/internal/services"
 )
 
-func xssProtection(htmlContent string) string {
+var httpsIframeSrcPattern = regexp.MustCompile(`(?i)^https://[^\s]+$`)
+
+func xssProtection(htmlContent string, allowHTTPSIframe bool) string {
 	ugcProtection := bluemonday.UGCPolicy() // 用户生成内容模式
 	ugcProtection.AllowAttrs("class").OnElements("code")
 	ugcProtection.AllowAttrs("start").OnElements("ol", "ul", "li")
+	if allowHTTPSIframe {
+		ugcProtection.AllowAttrs("src").Matching(httpsIframeSrcPattern).OnElements("iframe")
+		ugcProtection.AllowAttrs("title").OnElements("iframe")
+		ugcProtection.RequireSandboxOnIFrame(
+			bluemonday.SandboxAllowDownloads,
+			bluemonday.SandboxAllowForms,
+			bluemonday.SandboxAllowPopups,
+			bluemonday.SandboxAllowPopupsToEscapeSandbox,
+			bluemonday.SandboxAllowPresentation,
+			bluemonday.SandboxAllowSameOrigin,
+			bluemonday.SandboxAllowScripts,
+		)
+	}
 	return ugcProtection.Sanitize(htmlContent)
 }
 
 // handleHtmlContent 处理html内容
 func handleHtmlContent(htmlContent string) string {
-	htmlContent, _ = handleHtmlContentWithToc(htmlContent, false)
+	htmlContent, _ = handleHtmlContentWithToc(htmlContent, false, false)
 	return htmlContent
 }
 
 func handleTopicHtmlContent(htmlContent string) (string, []resp.TopicTocItem) {
-	return handleHtmlContentWithToc(htmlContent, true)
+	return handleHtmlContentWithToc(htmlContent, true, true)
 }
 
-func handleHtmlContentWithToc(htmlContent string, buildToc bool) (string, []resp.TopicTocItem) {
-	htmlContent = xssProtection(htmlContent)
+func handleHtmlContentWithToc(htmlContent string, buildToc, allowHTTPSIframe bool) (string, []resp.TopicTocItem) {
+	htmlContent = xssProtection(htmlContent, allowHTTPSIframe)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
 	if err != nil {
 		return htmlContent, nil
 	}
+
+	doc.Find("iframe").Each(func(_ int, selection *goquery.Selection) {
+		src := strings.TrimSpace(selection.AttrOr("src", ""))
+		iframeURL, parseErr := url.Parse(src)
+		if parseErr != nil || !strings.EqualFold(iframeURL.Scheme, "https") || iframeURL.Hostname() == "" {
+			selection.Remove()
+			return
+		}
+
+		selection.SetAttr("src", iframeURL.String())
+		selection.SetAttr("loading", "lazy")
+		selection.SetAttr("referrerpolicy", "no-referrer")
+		selection.SetAttr("allowfullscreen", "")
+		selection.SetAttr("sandbox", strings.Join([]string{
+			"allow-downloads",
+			"allow-forms",
+			"allow-popups",
+			"allow-popups-to-escape-sandbox",
+			"allow-presentation",
+			"allow-same-origin",
+			"allow-scripts",
+		}, " "))
+		if strings.TrimSpace(selection.AttrOr("title", "")) == "" {
+			selection.SetAttr("title", iframeURL.Hostname())
+		}
+	})
 
 	doc.Find("a").Each(func(_ int, selection *goquery.Selection) {
 		href := selection.AttrOr("href", "")

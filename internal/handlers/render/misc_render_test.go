@@ -2,6 +2,7 @@ package render
 
 import (
 	"bbs-go/internal/models/resp"
+	"bbs-go/internal/pkg/markdown"
 	"reflect"
 	"strings"
 	"testing"
@@ -49,5 +50,64 @@ func TestHandleTopicHtmlContentReturnsUpdatedContent(t *testing.T) {
 	}
 	if !strings.Contains(content, `<h2 id="topic-heading-title">Title</h2>`) {
 		t.Fatalf("heading id was not written to content: %s", content)
+	}
+}
+
+func TestHandleTopicHtmlContentAllowsSandboxedHTTPSIframe(t *testing.T) {
+	content, _ := handleTopicHtmlContent(`<iframe src="https://aikol.yz.rs/" title="X/Twitter" onload="alert(1)" sandbox="allow-top-navigation"></iframe>`)
+
+	for _, expected := range []string{
+		`<iframe`,
+		`src="https://aikol.yz.rs/"`,
+		`title="X/Twitter"`,
+		`loading="lazy"`,
+		`referrerpolicy="no-referrer"`,
+		`allowfullscreen=""`,
+		`allow-scripts`,
+		`allow-same-origin`,
+	} {
+		if !strings.Contains(content, expected) {
+			t.Fatalf("iframe content does not contain %q: %s", expected, content)
+		}
+	}
+	for _, forbidden := range []string{"onload", "alert(1)", "allow-top-navigation"} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("iframe content must not contain %q: %s", forbidden, content)
+		}
+	}
+}
+
+func TestHandleTopicHtmlContentRejectsNonHTTPSIframes(t *testing.T) {
+	for _, src := range []string{
+		"http://example.com",
+		"//example.com",
+		"javascript:alert(1)",
+		"data:text/html,hello",
+		"https:///missing-host",
+	} {
+		content, _ := handleTopicHtmlContent(`<p>before</p><iframe src="` + src + `"></iframe><p>after</p>`)
+		if strings.Contains(content, "<iframe") {
+			t.Fatalf("iframe with src %q must be removed: %s", src, content)
+		}
+		if !strings.Contains(content, "before") || !strings.Contains(content, "after") {
+			t.Fatalf("removing iframe with src %q must preserve surrounding content: %s", src, content)
+		}
+	}
+}
+
+func TestMarkdownTopicContentAllowsHTTPSIframe(t *testing.T) {
+	markdownHTML := markdown.ToHTML(`<iframe src="https://aikol.yz.rs/"></iframe>`)
+	content, _ := handleTopicHtmlContent(markdownHTML)
+
+	if !strings.Contains(content, `<iframe`) || !strings.Contains(content, `src="https://aikol.yz.rs/"`) {
+		t.Fatalf("markdown iframe was not preserved: %s", content)
+	}
+}
+
+func TestNonTopicContentStillRejectsIframe(t *testing.T) {
+	content := handleHtmlContent(`<p>comment</p><iframe src="https://aikol.yz.rs/"></iframe>`)
+
+	if strings.Contains(content, "<iframe") {
+		t.Fatalf("non-topic content must not allow iframe: %s", content)
 	}
 }
