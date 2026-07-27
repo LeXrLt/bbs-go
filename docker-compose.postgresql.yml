@@ -19,10 +19,10 @@ services:
       retries: 10
 
   bbs-go:
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-    image: mlogclub/bbs-go:${BBSGO_IMAGE_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: bbs-go:${BBSGO_IMAGE_TAG:-local}
     restart: unless-stopped
     depends_on:
       postgresql:
@@ -34,7 +34,7 @@ services:
       - ./docker-data-postgresql/logs:/app/logs
       - ./docker-data-postgresql/uploads:/app/res/uploads
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       BBSGO_ENV: prod
       NODE_ENV: production
