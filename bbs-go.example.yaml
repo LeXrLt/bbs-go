@@ -2,6 +2,7 @@ Port: 8082 # 端口
 AllowedOrigins:
   - "*"
 Installed: false # 是否已完成安装
+LoginRequired: true # 是否强制登录后访问站点内容
 
 # 数据下载 https://github.com/lionsoul2014/ip2region/tree/master/data
 IPLocator:

@@ -178,6 +178,8 @@ export interface SiteNav {
 
 export interface SiteConfig {
   language?: string
+  installed?: boolean
+  loginRequired?: boolean
   siteTitle?: string
   siteDescription?: string
   siteKeywords?: string[]

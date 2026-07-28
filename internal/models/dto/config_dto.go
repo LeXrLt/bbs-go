@@ -45,6 +45,7 @@ type SysConfigAdminResponse struct {
 //	Open配置返回结构体
 type SysConfigOpenResponse struct {
 	SiteTitle                  string            `json:"siteTitle"`
+	LoginRequired              bool              `json:"loginRequired"`
 	SiteDescription            string            `json:"siteDescription"`
 	BaseURL                    string            `json:"baseURL"`
 	SiteKeywords               []string          `json:"siteKeywords"`

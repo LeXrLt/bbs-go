@@ -51,8 +51,9 @@ func newRouter() *gin.Engine {
 	}
 	app.Use(cors.New(corsConfig))
 	app.Use(middleware.AttachmentMiddleware)
+	app.Use(middleware.LoginRequiredResourceMiddleware)
 
-	registerAPIRoutes(app.Group("/api", middleware.InstallMiddleware, middleware.AuthMiddleware))
+	registerAPIRoutes(app.Group("/api", middleware.InstallMiddleware, middleware.AuthMiddleware, middleware.LoginRequiredMiddleware))
 	registerAdminRoutes(app.Group("/api/admin", middleware.InstallMiddleware, middleware.AuthMiddleware, middleware.AdminMiddleware))
 
 	app.StaticFS("/res", ginx.StaticFiles(respath.ResDir()))

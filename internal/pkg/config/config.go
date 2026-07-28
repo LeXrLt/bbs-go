@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -15,12 +16,15 @@ import (
 )
 
 const (
-	BBSGO_ENV  = "BBSGO_ENV"
-	ENV_PREFIX = "BBSGO"
+	BBSGO_ENV            = "BBSGO_ENV"
+	BBSGO_LOGIN_REQUIRED = "BBSGO_LOGIN_REQUIRED"
+	ENV_PREFIX           = "BBSGO"
 
 	EnvDev  = "dev"
 	EnvTest = "test"
 	EnvProd = "prod"
+
+	DefaultLoginRequired = true
 )
 
 type Language string
@@ -60,6 +64,10 @@ func init() {
 	v.AutomaticEnv()
 	v.SetEnvPrefix(ENV_PREFIX)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.SetDefault("loginRequired", DefaultLoginRequired)
+	if err := v.BindEnv("loginRequired", BBSGO_LOGIN_REQUIRED); err != nil {
+		panic(fmt.Errorf("bind %s: %w", BBSGO_LOGIN_REQUIRED, err))
+	}
 
 	configFile = getConfigFilePath(configFileName)
 }
@@ -70,6 +78,7 @@ type Config struct {
 	IPLocator      IPLocator     `yaml:"ipLocator"`      // IP定位配置
 	AllowedOrigins []string      `yaml:"allowedOrigins"` // 跨域白名单
 	Installed      bool          `yaml:"installed"`      // 是否已安装
+	LoginRequired  bool          `yaml:"loginRequired"`  // 是否强制登录后访问站点内容
 	IDCodec        IDCodecConfig `yaml:"idCodec"`        // ID 编解码配置
 	Logger         LoggerConfig  `yaml:"logger"`         // 日志配置
 	DB             DBConfig      `yaml:"db"`             // 数据库配置
@@ -116,15 +125,19 @@ type SearchConfig struct {
 }
 
 func ReadConfig() (cfg *Config, exists bool, err error) {
+	return readConfig(v)
+}
+
+func readConfig(reader *viper.Viper) (cfg *Config, exists bool, err error) {
 	exists = true
-	if e := v.ReadInConfig(); e != nil {
+	if e := reader.ReadInConfig(); e != nil {
 		exists = false
 		slog.Warn("Config file not found, use default", slog.Any("error", e))
 	}
 
 	if exists {
-		if e := v.Unmarshal(&cfg); e != nil {
-			err = fmt.Errorf("fatal error unmarshal config: %w", err)
+		if e := reader.Unmarshal(&cfg); e != nil {
+			err = fmt.Errorf("fatal error unmarshal config: %w", e)
 			return
 		}
 		// 如果配置文件存在但没有语言设置，使用默认语言
@@ -147,8 +160,29 @@ func ReadConfig() (cfg *Config, exists bool, err error) {
 			DB: defaultDbConfig(),
 		}
 	}
+	loginRequired, parseErr := parseLoginRequired(reader.GetString("loginRequired"))
+	if parseErr != nil {
+		return nil, exists, parseErr
+	}
+	cfg.LoginRequired = loginRequired
 
 	return cfg, exists, nil
+}
+
+func parseLoginRequired(raw string) (bool, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return DefaultLoginRequired, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("invalid %s value %q: expected a boolean", BBSGO_LOGIN_REQUIRED, raw)
+	}
+	return parsed, nil
+}
+
+func IsLoginRequired() bool {
+	return Instance != nil && Instance.Installed && Instance.LoginRequired
 }
 
 func WriteConfig(cfg *Config) error {

@@ -3,15 +3,22 @@ import {
   isRouteErrorResponse,
   Links,
   Meta,
+  Navigate,
   Outlet,
+  redirect,
   Scripts,
   ScrollRestoration,
   useLoaderData,
+  useLocation,
   useRouteLoaderData,
   useRouteError,
 } from "react-router"
 
-import { AppProvider, useAppConfig } from "@/components/app/app-provider"
+import {
+  AppProvider,
+  useAppConfig,
+  useAppState,
+} from "@/components/app/app-provider"
 import { ErrorPage } from "@/components/common/error-page"
 import {
   InstallRequiredFallback,
@@ -23,6 +30,10 @@ import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { apiFetch } from "@/lib/api/client"
 import type { SiteConfig, UserSummary } from "@/lib/api/types"
+import {
+  isPublicSitePath,
+  shouldRequireSiteLogin,
+} from "@/lib/auth/site-access.js"
 import { I18nProvider } from "@/lib/i18n/provider"
 import {
   getRenderableScriptInjections,
@@ -31,6 +42,7 @@ import {
 import { siteMeta } from "@/lib/seo"
 
 import type { Route } from "./+types/root"
+import { buildSigninRedirect } from "./route-helpers/auth"
 import { rootDataContext } from "./route-helpers/context"
 import { getBrowserLocale, normalizeLocale } from "./route-helpers/locale"
 import type { RootLoaderData } from "./route-helpers/types"
@@ -66,6 +78,29 @@ async function loadRootData(request: Request): Promise<RootLoaderData> {
     unreadMessageCount: 0,
   }
 }
+
+export const middleware: Route.MiddlewareFunction[] = [
+  async ({ request, url, context }, next) => {
+    if (process.env.BBSGO_WEB_SPA === "true") return next()
+
+    const rootDataPromise = loadRootData(request)
+    context.set(rootDataContext, () => rootDataPromise)
+    const rootData = await rootDataPromise
+    const pathname = url.pathname
+
+    if (
+      shouldRequireSiteLogin(
+        rootData.config?.loginRequired,
+        rootData.currentUser,
+        pathname
+      )
+    ) {
+      throw redirect(buildSigninRedirect(url))
+    }
+
+    return next()
+  },
+]
 
 export async function loader({
   request,
@@ -183,6 +218,22 @@ function RuntimeScriptInjections() {
   return null
 }
 
+function SiteAccessGate({ children }: { children: React.ReactNode }) {
+  const { config, currentUser, authChecked } = useAppState()
+  const location = useLocation()
+  const pathname = location.pathname
+
+  if (isPublicSitePath(pathname)) return children
+  if (config?.loginRequired && !currentUser && !authChecked) return null
+  if (shouldRequireSiteLogin(config?.loginRequired, currentUser, pathname)) {
+    return (
+      <Navigate to={buildSigninRedirect(pathname + location.search)} replace />
+    )
+  }
+
+  return children
+}
+
 export default function Root() {
   const loaderData = useLoaderData<typeof loader>()
   const [locale, setLocale] = React.useState(loaderData.locale)
@@ -214,16 +265,18 @@ export default function Root() {
   return (
     <I18nProvider locale={locale} setLocale={updateLocale}>
       <AppProvider initialState={appState}>
-        <ThemeProvider>
-          <TooltipProvider>
-            <RuntimeScriptInjections />
-            <GoogleOneTapGate />
-            <LayoutChrome>
-              <Outlet />
-            </LayoutChrome>
-            <Toaster position="top-center" />
-          </TooltipProvider>
-        </ThemeProvider>
+        <SiteAccessGate>
+          <ThemeProvider>
+            <TooltipProvider>
+              <RuntimeScriptInjections />
+              <GoogleOneTapGate />
+              <LayoutChrome>
+                <Outlet />
+              </LayoutChrome>
+              <Toaster position="top-center" />
+            </TooltipProvider>
+          </ThemeProvider>
+        </SiteAccessGate>
       </AppProvider>
     </I18nProvider>
   )

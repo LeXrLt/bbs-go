@@ -8,6 +8,7 @@ bbs-go.yaml
 
 data
 docker-data
+docker-data-*
 logs
 res/uploads
 
