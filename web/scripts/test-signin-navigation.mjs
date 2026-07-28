@@ -7,6 +7,11 @@ const signinForm = readFileSync(
   "utf8"
 )
 
+const signupRoute = readFileSync(
+  fileURLToPath(new URL("../app/routes/user.signup.tsx", import.meta.url)),
+  "utf8"
+)
+
 const navigation = readFileSync(
   fileURLToPath(new URL("../lib/router/navigation.ts", import.meta.url)),
   "utf8"
@@ -28,6 +33,36 @@ assert.doesNotMatch(
   signinForm,
   /showWeixinQR/,
   "WeChat login should open a modal instead of toggling an inline QR code under the button"
+)
+
+assert.doesNotMatch(
+  signinForm,
+  /\/user\/signup|noAccount/,
+  "signin page must not offer explicit account registration"
+)
+
+assert.doesNotMatch(
+  signupRoute,
+  /SignupForm|signup-form/,
+  "signup route must not render the explicit registration form"
+)
+
+assert.match(
+  signupRoute,
+  /export function loader[\s\S]*redirectToSignin\(request\)/,
+  "signup route must redirect during SSR"
+)
+
+assert.match(
+  signupRoute,
+  /export function clientLoader[\s\S]*redirectToSignin\(request\)/,
+  "signup route must redirect during SPA navigation"
+)
+
+assert.match(
+  signupRoute,
+  /<Navigate\s+to=\{`\/user\/signin\$\{location\.search\}`\}\s+replace\s*\/>/,
+  "signup route must redirect to signin while preserving its query string"
 )
 
 assert.match(

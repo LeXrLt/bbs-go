@@ -30,7 +30,7 @@ import (
 // 修改自己的密码
 // PostResetPassword 重置密码
 func userBuildUserItem(user *models.User, buildRoleIds bool) map[string]interface{} {
-	b := web.NewRspBuilder(user).
+	b := web.NewRspBuilderExcludes(user, "Password").
 		Put("idEncode", idcodec.Encode(user.Id)).
 		Put("roles", user.GetRoles()).
 		Put("username", user.Username.String).
@@ -124,12 +124,14 @@ func UserCreate(ctx *gin.Context) {
 		return
 	}
 
-	user, err := services.UserService.SignUp(req.Username, req.Email, req.Nickname, req.Password, req.Password)
+	user, password, err := services.UserService.CreateWithRandomPassword(req.Username, req.Email, req.Nickname)
 	if err != nil {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	ginx.WriteJSON(ctx, userBuildUserItem(user, true))
+	result := userBuildUserItem(user, true)
+	result["password"] = password
+	ginx.WriteJSON(ctx, result)
 
 }
 

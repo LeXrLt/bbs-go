@@ -155,6 +155,10 @@ const enUS = {
       copy: "Copy",
       copied: "Copied",
     },
+    createUser: {
+      title: "User Created Successfully",
+      initialPassword: "Initial Password",
+    },
     boolean: {
       yes: "Yes",
       no: "No",

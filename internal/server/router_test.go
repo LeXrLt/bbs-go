@@ -168,6 +168,11 @@ func TestGinRouterRegistersCompatibleAPIPaths(t *testing.T) {
 		http.MethodGet + " /api/topic/category_navs",
 		http.MethodGet + " /api/user/score/rank",
 		http.MethodGet + " /api/login/wx_login_config",
+		http.MethodPost + " /api/login/login_sms",
+		http.MethodPost + " /api/login/wx_login_submit",
+		http.MethodPost + " /api/login/google_login_submit",
+		http.MethodPost + " /api/login/google_one_tap",
+		http.MethodPost + " /api/login/github_login_submit",
 		http.MethodPost + " /api/topic/accept_answer/:id",
 		http.MethodGet + " /api/admin/search/reindex/status",
 		http.MethodPost + " /api/admin/search/reindex",
@@ -189,6 +194,7 @@ func TestGinRouterRegistersCompatibleAPIPaths(t *testing.T) {
 	}
 
 	for _, notWant := range []string{
+		http.MethodPost + " /api/login/signup",
 		http.MethodGet + " /api/search/reindex",
 		http.MethodPost + " /api/search/reindex",
 		http.MethodPut + " /api/admin/role/list",

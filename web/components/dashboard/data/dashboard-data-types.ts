@@ -97,6 +97,11 @@ export type DashboardDataPageConfig = {
   columns: DashboardDataColumn[]
   detailFields?: DashboardDataDetailField[]
   formFields?: DashboardDataFormField[]
+  createFormFields?: DashboardDataFormField[]
+  createPasswordResult?: {
+    title: string
+    passwordLabel: string
+  }
   rowActions?: DashboardDataRowAction[]
   pageSize?: number
   listResult?: "page" | "array"

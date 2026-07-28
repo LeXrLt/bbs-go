@@ -17,7 +17,6 @@ var publicLoginRequiredAPIRequests = map[string]struct{}{
 	"GET /api/install/status":                   {},
 	"POST /api/install/test_db_connection":      {},
 	"POST /api/install/install":                 {},
-	"POST /api/login/signup":                    {},
 	"POST /api/login/signin":                    {},
 	"POST /api/login/send_reset_password_email": {},
 	"POST /api/login/reset_password":            {},

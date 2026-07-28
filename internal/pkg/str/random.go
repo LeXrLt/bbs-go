@@ -1,8 +1,8 @@
 package str
 
 import (
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"math/big"
 )
 
 const (
@@ -11,13 +11,15 @@ const (
 	passwordLength = 20
 )
 
-var seededRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-// GenerateRandomPassword creates a random password with a given length.
-func GenerateRandomPassword() string {
+// GenerateRandomPassword creates a cryptographically secure random password.
+func GenerateRandomPassword() (string, error) {
 	b := make([]byte, passwordLength)
 	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", err
+		}
+		b[i] = charset[index.Int64()]
 	}
-	return string(b)
+	return string(b), nil
 }

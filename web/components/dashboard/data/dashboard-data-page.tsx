@@ -72,7 +72,8 @@ export function DashboardDataPage({
         loading={state.loading}
         canCreate={Boolean(
           visibleConfig.createEndpoint &&
-          visibleConfig.formFields?.length &&
+          (visibleConfig.createFormFields ?? visibleConfig.formFields)
+            ?.length &&
           canUse(visibleConfig.createPermission)
         )}
         error={state.error}
@@ -164,9 +165,14 @@ export function DashboardDataPage({
       />
 
       <DashboardDataPasswordDialog
-        password={state.passwordResult}
-        title={t("dashboard.resetPassword.title")}
-        passwordLabel={t("dashboard.resetPassword.newPassword")}
+        password={state.passwordResult?.password ?? null}
+        title={
+          state.passwordResult?.title ?? t("dashboard.resetPassword.title")
+        }
+        passwordLabel={
+          state.passwordResult?.passwordLabel ??
+          t("dashboard.resetPassword.newPassword")
+        }
         copyLabel={t("dashboard.resetPassword.copy")}
         copiedMessage={t("dashboard.resetPassword.copied")}
         cancelLabel={t("common.cancel")}

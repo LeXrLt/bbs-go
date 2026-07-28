@@ -20,6 +20,7 @@ import type {
   DashboardDataPageConfig,
   DashboardDataRowAction,
 } from "./dashboard-data-types"
+import { dashboardPasswordResult } from "./dashboard-password-result.js"
 import {
   DASHBOARD_DATA_DEPTH_KEY,
   DASHBOARD_DATA_HAS_CHILDREN_KEY,
@@ -32,6 +33,10 @@ import {
   normalizeDashboardDataOptionRecords,
   toDashboardDataPrimitive,
 } from "./dashboard-data-utils"
+
+type DashboardPasswordResult = NonNullable<
+  ReturnType<typeof dashboardPasswordResult>
+>
 
 export function useDashboardDataPage({
   config,
@@ -72,9 +77,8 @@ export function useDashboardDataPage({
   const [formErrors, setFormErrors] = React.useState<Record<string, string>>({})
   const [confirmState, setConfirmState] =
     React.useState<ConfirmDialogState>(null)
-  const [passwordResult, setPasswordResult] = React.useState<string | null>(
-    null
-  )
+  const [passwordResult, setPasswordResult] =
+    React.useState<DashboardPasswordResult | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
   const [asyncOptions, setAsyncOptions] = React.useState<
     Record<string, DashboardDataOption[]>
@@ -143,19 +147,25 @@ export function useDashboardDataPage({
     knownTreeKeysRef.current = nextKeys
   }, [config.tree, config.treeDefaultCollapsed, treeRecords])
 
-  const visibleFormFields = React.useMemo(
-    () =>
-      (config.formFields || []).filter(
-        (field) =>
-          !(
-            field.name === "id" &&
-            (formValues.id === undefined ||
-              formValues.id === null ||
-              formValues.id === "")
-          )
-      ),
-    [config.formFields, formValues.id]
-  )
+  const visibleFormFields = React.useMemo(() => {
+    const isCreateForm =
+      editing !== null &&
+      (formValues.id === undefined ||
+        formValues.id === null ||
+        formValues.id === "")
+    const fields = isCreateForm
+      ? (config.createFormFields ?? config.formFields)
+      : config.formFields
+    return (fields || []).filter(
+      (field) =>
+        !(
+          field.name === "id" &&
+          (formValues.id === undefined ||
+            formValues.id === null ||
+            formValues.id === "")
+        )
+    )
+  }, [config.createFormFields, config.formFields, editing, formValues.id])
 
   const load = React.useCallback(async () => {
     setLoading(true)
@@ -192,7 +202,10 @@ export function useDashboardDataPage({
   }, [load])
 
   React.useEffect(() => {
-    const sources = [...(config.filters || []), ...(config.formFields || [])]
+    const sources = [
+      ...(config.filters || []),
+      ...(editing ? visibleFormFields : []),
+    ]
       .filter((source) => source.optionsEndpoint)
       .map((source) => ({
         key: source.name,
@@ -241,7 +254,7 @@ export function useDashboardDataPage({
     return () => {
       cancelled = true
     }
-  }, [config.filters, config.formFields, messages.loadFailed])
+  }, [config.filters, editing, messages.loadFailed, visibleFormFields])
 
   function updateFilter(name: string, value: AdminFormValue) {
     setFilters((current) => ({
@@ -338,10 +351,17 @@ export function useDashboardDataPage({
     setSubmitting(true)
     setError(null)
     try {
-      await adminPostForm(
+      const result = await adminPostForm(
         endpoint,
         config.transformSubmitValues?.(formValues) ?? formValues
       )
+      const passwordResult =
+        !isEdit && config.createPasswordResult
+          ? dashboardPasswordResult(result, config.createPasswordResult)
+          : null
+      if (passwordResult) {
+        setPasswordResult(passwordResult)
+      }
       msgSuccess(messages.saved)
       setEditing(null)
       await load()
@@ -413,13 +433,9 @@ export function useDashboardDataPage({
         action.method === "DELETE"
           ? await adminDelete(action.endpoint, payload)
           : await adminPostForm(action.endpoint, payload)
-      if (
-        result &&
-        typeof result === "object" &&
-        "password" in result &&
-        typeof result.password === "string"
-      ) {
-        setPasswordResult(result.password)
+      const passwordResult = dashboardPasswordResult(result)
+      if (passwordResult) {
+        setPasswordResult(passwordResult)
       } else {
         msgSuccess(action.successMessage || messages.actionDone)
       }

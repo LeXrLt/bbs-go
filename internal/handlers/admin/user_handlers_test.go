@@ -14,10 +14,13 @@ import (
 	"bbs-go/internal/models/constants"
 	"bbs-go/internal/pkg/config"
 	"bbs-go/internal/pkg/idcodec"
+	"bbs-go/internal/pkg/locales"
 	"bbs-go/internal/pkg/search"
+	"bbs-go/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/mlogclub/simple/common/passwd"
 	"github.com/mlogclub/simple/sqls"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -53,6 +56,9 @@ func TestUserListFiltersForbiddenUsers(t *testing.T) {
 	gotIDs := make([]int64, 0, len(users))
 	for _, user := range users {
 		gotIDs = append(gotIDs, int64(user["id"].(float64)))
+		if _, exists := user["password"]; exists {
+			t.Fatalf("expected password hash to be excluded, got %#v", user)
+		}
 		if forbidden, ok := user["forbidden"].(bool); !ok || !forbidden {
 			t.Fatalf("expected only forbidden users, got %#v", user)
 		}
@@ -180,6 +186,127 @@ func TestUserResetPasswordDisablesUserTokens(t *testing.T) {
 	}
 }
 
+func TestUserCreateGeneratesLoginPasswordAndAllowsEmptyNickname(t *testing.T) {
+	db := setupAdminUserTestDB(t)
+	result := postUserCreate(t, "username=staff01&email=staff01%40example.com")
+
+	if !result.Success {
+		t.Fatalf("expected success response, got %#v", result)
+	}
+	if result.Data.Password == "" {
+		t.Fatal("expected generated password in response")
+	}
+
+	var user models.User
+	if err := db.First(&user, "username = ?", "staff01").Error; err != nil {
+		t.Fatalf("find created user: %v", err)
+	}
+	if user.Email.String != "staff01@example.com" {
+		t.Fatalf("expected saved email, got %q", user.Email.String)
+	}
+	if user.Nickname != "" {
+		t.Fatalf("expected empty nickname to be allowed, got %q", user.Nickname)
+	}
+	if user.Password == result.Data.Password {
+		t.Fatal("expected database to contain a password hash, not plaintext")
+	}
+	if !passwd.ValidatePassword(user.Password, result.Data.Password) {
+		t.Fatal("expected generated password to match the stored hash")
+	}
+	if _, err := services.UserService.SignIn("staff01", result.Data.Password); err != nil {
+		t.Fatalf("sign in with generated password: %v", err)
+	}
+}
+
+func TestUserCreateValidatesRequiredAndUniqueFields(t *testing.T) {
+	tests := []struct {
+		name     string
+		body     string
+		existing *models.User
+		message  func() string
+	}{
+		{
+			name: "username is required",
+			body: "email=staff01%40example.com",
+			message: func() string {
+				return locales.Get("user.username_required")
+			},
+		},
+		{
+			name: "username must be valid",
+			body: "username=bad&email=staff01%40example.com",
+			message: func() string {
+				return locales.Get("user.username_invalid")
+			},
+		},
+		{
+			name: "email is required",
+			body: "username=staff01",
+			message: func() string {
+				return locales.Get("user.email_required")
+			},
+		},
+		{
+			name: "email must be valid",
+			body: "username=staff01&email=invalid",
+			message: func() string {
+				return locales.Get("user.email_invalid")
+			},
+		},
+		{
+			name: "username must be unique",
+			body: "username=staff01&email=new%40example.com",
+			existing: &models.User{
+				Username: sqls.SqlNullString("staff01"),
+				Email:    sqls.SqlNullString("existing@example.com"),
+			},
+			message: func() string {
+				return locales.Getf("user.username_occupied", "staff01")
+			},
+		},
+		{
+			name: "email must be unique",
+			body: "username=staff02&email=existing%40example.com",
+			existing: &models.User{
+				Username: sqls.SqlNullString("existing"),
+				Email:    sqls.SqlNullString("existing@example.com"),
+			},
+			message: func() string {
+				return locales.Getf("user.email_occupied", "existing@example.com")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := setupAdminUserTestDB(t)
+			if tt.existing != nil {
+				mustCreateUser(t, db, tt.existing)
+			}
+			var before int64
+			if err := db.Model(&models.User{}).Count(&before).Error; err != nil {
+				t.Fatalf("count users before request: %v", err)
+			}
+
+			result := postUserCreate(t, tt.body)
+			if result.Success {
+				t.Fatalf("expected validation failure, got %#v", result)
+			}
+			if result.Message != tt.message() {
+				t.Fatalf("expected message %q, got %q", tt.message(), result.Message)
+			}
+
+			var after int64
+			if err := db.Model(&models.User{}).Count(&after).Error; err != nil {
+				t.Fatalf("count users after request: %v", err)
+			}
+			if after != before {
+				t.Fatalf("expected user count to remain %d, got %d", before, after)
+			}
+		})
+	}
+}
+
 func setupAdminUserTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	idcodec.Init(1)
@@ -266,6 +393,37 @@ func postUserResetPassword(t *testing.T, body string) {
 	if result.Data.Password == "" {
 		t.Fatalf("expected reset password in response, got %s", w.Body.String())
 	}
+}
+
+type userCreateResult struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Password string `json:"password"`
+	} `json:"data"`
+}
+
+func postUserCreate(t *testing.T, body string) userCreateResult {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/user/create", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx.Request = req
+
+	UserCreate(ctx)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", w.Code)
+	}
+
+	var result userCreateResult
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+		t.Fatalf("decode response %q: %v", w.Body.String(), err)
+	}
+	return result
 }
 
 func postUserList(t *testing.T, body string) []map[string]interface{} {

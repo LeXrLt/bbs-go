@@ -103,7 +103,6 @@ type AdminUserCreateReq struct {
 	Username string `json:"username" form:"username"`
 	Email    string `json:"email" form:"email"`
 	Nickname string `json:"nickname" form:"nickname"`
-	Password string `json:"password" form:"password"`
 }
 
 type AdminUserUpdateReq struct {

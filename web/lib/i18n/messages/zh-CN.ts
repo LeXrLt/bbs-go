@@ -155,6 +155,10 @@ const zhCN = {
       copy: "复制",
       copied: "已复制",
     },
+    createUser: {
+      title: "用户创建成功",
+      initialPassword: "初始密码",
+    },
     boolean: {
       yes: "是",
       no: "否",

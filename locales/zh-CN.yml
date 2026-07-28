@@ -90,6 +90,7 @@ errors:
 
 auth:
   password_login_disabled: "账号密码登录/注册已禁用"
+  registration_disabled: "注册已关闭，请联系管理员创建账号"
   phone_required: "请输入手机号码"
   sms_login_disabled: "短信登录已禁用"
   login_data_error: "登录数据错误"

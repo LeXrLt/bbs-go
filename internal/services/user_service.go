@@ -266,6 +266,60 @@ func (s *userService) SignUp(username, email, nickname, password, rePassword str
 	return user, nil
 }
 
+// CreateWithRandomPassword creates an account for an administrator and returns
+// the generated plaintext password exactly once.
+func (s *userService) CreateWithRandomPassword(username, email, nickname string) (*models.User, string, error) {
+	username = strings.TrimSpace(username)
+	email = strings.TrimSpace(email)
+	nickname = strings.TrimSpace(nickname)
+
+	if err := validate.IsUsername(username); err != nil {
+		return nil, "", err
+	}
+	if s.isUsernameExists(username) {
+		return nil, "", errors.New(locales.Getf("user.username_occupied", username))
+	}
+
+	if len(email) == 0 {
+		return nil, "", errors.New(locales.Get("user.email_required"))
+	}
+	if err := validate.IsEmail(email); err != nil {
+		return nil, "", err
+	}
+	if s.isEmailExists(email) {
+		return nil, "", errors.New(locales.Getf("user.email_occupied", email))
+	}
+
+	password, err := str.GenerateRandomPassword()
+	if err != nil {
+		return nil, "", err
+	}
+	if err := validate.IsPassword(password); err != nil {
+		return nil, "", err
+	}
+
+	user := &models.User{
+		Username:   sqls.SqlNullString(username),
+		Email:      sqls.SqlNullString(email),
+		Nickname:   nickname,
+		Password:   passwd.EncodePassword(password),
+		Status:     constants.StatusOk,
+		CreateTime: dates.NowTimestamp(),
+		UpdateTime: dates.NowTimestamp(),
+	}
+	if err := repositories.UserRepository.Create(sqls.DB(), user); err != nil {
+		if s.isUsernameExists(username) {
+			return nil, "", errors.New(locales.Getf("user.username_occupied", username))
+		}
+		if s.isEmailExists(email) {
+			return nil, "", errors.New(locales.Getf("user.email_occupied", email))
+		}
+		return nil, "", err
+	}
+	search.UpdateUserIndex(user)
+	return user, password, nil
+}
+
 // SignIn 登录
 func (s *userService) SignIn(username, password string) (*models.User, error) {
 	if strs.IsBlank(username) {
@@ -430,7 +484,10 @@ func (s *userService) ResetPassword(userId int64) (string, error) {
 	}
 
 	// 2. Generate a new random password
-	newPassword := str.GenerateRandomPassword()
+	newPassword, err := str.GenerateRandomPassword()
+	if err != nil {
+		return "", err
+	}
 
 	// 3. Hash the new password, update database, and invalidate login tokens
 	if err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {

@@ -5,7 +5,7 @@ import (
 	"bbs-go/internal/handlers/render"
 	"bbs-go/internal/models"
 	"bbs-go/internal/models/req"
-	"database/sql"
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +13,6 @@ import (
 	"bbs-go/internal/pkg/ginx"
 
 	"github.com/dchest/captcha"
-	"github.com/mlogclub/simple/common/dates"
 	"github.com/mlogclub/simple/common/strs"
 
 	"bbs-go/internal/pkg/bbsurls"
@@ -239,26 +238,22 @@ func LoginLoginSms(ctx *gin.Context) {
 		return
 	}
 
-	user := services.UserService.GetByPhone(phone)
-	if user == nil {
-		user = &models.User{
-			Phone: sql.NullString{
-				String: phone,
-				Valid:  true,
-			},
-			Nickname:   "User" + common.StrRight(phone, 4),
-			CreateTime: dates.NowTimestamp(),
-			UpdateTime: dates.NowTimestamp(),
-		}
-
-		if err := services.UserService.Create(user); err != nil {
-			ginx.WriteJSON(ctx, err)
-			return
-		}
+	user, err := loginSmsUser(phone)
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
 	}
 
 	ginx.WriteJSON(ctx, render.BuildLoginSuccess(ctx, user, req.Redirect))
 
+}
+
+func loginSmsUser(phone string) (*models.User, error) {
+	user := services.UserService.GetByPhone(phone)
+	if user == nil {
+		return nil, errors.New(locales.Get("auth.registration_disabled"))
+	}
+	return user, nil
 }
 
 func LoginWxLoginConfig(ctx *gin.Context) {

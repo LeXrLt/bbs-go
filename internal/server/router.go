@@ -123,7 +123,6 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	articleGroup.GET("/:id", apiHandlers.ArticleDetail)
 
 	loginGroup := group.Group("/login")
-	loginGroup.POST("/signup", apiHandlers.LoginSignup)
 	loginGroup.POST("/signin", apiHandlers.LoginSignin)
 	loginGroup.POST("/send_reset_password_email", apiHandlers.LoginSendResetPasswordEmail)
 	loginGroup.POST("/reset_password", apiHandlers.LoginResetPassword)

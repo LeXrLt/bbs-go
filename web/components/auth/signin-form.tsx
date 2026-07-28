@@ -35,10 +35,6 @@ import { cn } from "@/lib/utils"
 
 const initialState: AuthActionState = { ok: false }
 
-function authLink(path: string, redirect?: string) {
-  return redirect ? `${path}?redirect=${encodeURIComponent(redirect)}` : path
-}
-
 function enabled(value?: { enabled?: boolean }) {
   return value?.enabled !== false
 }
@@ -253,14 +249,6 @@ function PasswordLoginForm({ redirect }: { redirect?: string }) {
             className="text-sm text-muted-foreground transition-colors hover:text-primary"
           >
             {t("user.signin.password.forgotPassword")}
-          </Link>
-        </div>
-        <div className="text-center">
-          <Link
-            href={authLink("/user/signup", redirect)}
-            className="text-sm text-muted-foreground transition-colors hover:text-primary"
-          >
-            {t("user.signin.password.noAccount")}
           </Link>
         </div>
       </form>

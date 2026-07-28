@@ -90,6 +90,7 @@ errors:
 
 auth:
   password_login_disabled: "Password login/registration is disabled"
+  registration_disabled: "Registration is closed. Contact an administrator to create an account."
   phone_required: "Phone number is required"
   sms_login_disabled: "SMS login is disabled"
   login_data_error: "Sign-in data is invalid or expired. Please sign in again"

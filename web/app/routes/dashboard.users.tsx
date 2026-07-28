@@ -16,6 +16,12 @@ export default function DashboardUsersRoute() {
     listEndpoint: "/api/admin/user/list",
     viewPermission: PERMISSIONS.DASHBOARD_USER_VIEW,
     detailEndpoint: (id) => `/api/admin/user/${id}`,
+    createEndpoint: "/api/admin/user/create",
+    createPermission: PERMISSIONS.DASHBOARD_USER_CREATE,
+    createPasswordResult: {
+      title: t("dashboard.createUser.title"),
+      passwordLabel: t("dashboard.createUser.initialPassword"),
+    },
     updateEndpoint: "/api/admin/user/update",
     updatePermission: PERMISSIONS.DASHBOARD_USER_UPDATE,
     filters: [
@@ -77,6 +83,19 @@ export default function DashboardUsersRoute() {
         key: "createTime",
         label: dashboardData.label(t, "createTime"),
         render: (record) => dashboardData.dateCell(record.createTime),
+      },
+    ],
+    createFormFields: [
+      {
+        name: "username",
+        label: dashboardData.label(t, "username"),
+        required: true,
+      },
+      { name: "nickname", label: dashboardData.label(t, "nickname") },
+      {
+        name: "email",
+        label: dashboardData.label(t, "email"),
+        required: true,
       },
     ],
     formFields: [

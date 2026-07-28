@@ -131,7 +131,90 @@ for (const sourcePath of [
   )
 }
 
-const categoriesRoute = readFileSync(resolve(routesDir, "dashboard.categories.tsx"), "utf8")
+const categoriesRoute = readFileSync(
+  resolve(routesDir, "dashboard.categories.tsx"),
+  "utf8"
+)
+const usersRoute = readFileSync(
+  resolve(routesDir, "dashboard.users.tsx"),
+  "utf8"
+)
+const dataFieldControl = readFileSync(
+  resolve(dashboardDataDir, "dashboard-data-field-control.tsx"),
+  "utf8"
+)
+
+assert.match(
+  usersRoute,
+  /createEndpoint:\s*"\/api\/admin\/user\/create"/,
+  "dashboard.users.tsx should expose the existing admin user create endpoint"
+)
+
+assert.match(
+  usersRoute,
+  /createPermission:\s*PERMISSIONS\.DASHBOARD_USER_CREATE/,
+  "dashboard.users.tsx should require the user-create permission"
+)
+
+const createFieldsStart = usersRoute.indexOf("createFormFields:")
+const editFieldsStart = usersRoute.indexOf("formFields:", createFieldsStart + 1)
+assert.notEqual(
+  createFieldsStart,
+  -1,
+  "dashboard.users.tsx should define create-only fields"
+)
+assert.notEqual(
+  editFieldsStart,
+  -1,
+  "dashboard.users.tsx should retain edit fields"
+)
+const userCreateFields = usersRoute.slice(createFieldsStart, editFieldsStart)
+
+assert.match(
+  userCreateFields,
+  /\{\s*name:\s*"username",[^}]*required:\s*true[^}]*\}/,
+  "creating a user should require a username"
+)
+const nicknameField = userCreateFields.match(/\{\s*name:\s*"nickname",[^}]*\}/)
+assert.notEqual(
+  nicknameField,
+  null,
+  "creating a user should include a nickname field"
+)
+assert.equal(
+  nicknameField?.[0].includes("required"),
+  false,
+  "creating a user should allow an optional nickname"
+)
+assert.match(
+  userCreateFields,
+  /\{\s*name:\s*"email",[^}]*required:\s*true[^}]*\}/,
+  "creating a user should require an email"
+)
+assert.equal(
+  /name:\s*"password"/.test(userCreateFields),
+  false,
+  "the server should generate new-user passwords"
+)
+
+const requiredMarker = dataFieldControl.match(
+  /field\.required\s*\?\s*\(([\s\S]*?)\)\s*:\s*null/
+)
+assert.notEqual(
+  requiredMarker,
+  null,
+  "required dashboard fields should render a marker before submission"
+)
+assert.match(
+  requiredMarker?.[1] ?? "",
+  /className="text-destructive"[\s\S]*?>\s*\*\s*<\/span>/,
+  "required dashboard field markers should be visually prominent"
+)
+assert.match(
+  dataFieldControl,
+  /aria-required=\{field\.required \|\| undefined\}/,
+  "required dashboard text fields should expose required semantics"
+)
 
 assert.equal(
   /name:\s*"parentId"[\s\S]*?type:\s*"tree-select"/.test(categoriesRoute),

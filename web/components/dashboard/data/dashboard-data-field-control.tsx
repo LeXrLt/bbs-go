@@ -55,7 +55,14 @@ export function DashboardDataFieldControl({
         (field.colSpan === 2 || field.type === "textarea") && "md:col-span-2"
       )}
     >
-      <Label>{field.label}</Label>
+      <Label className="gap-1">
+        <span>{field.label}</span>
+        {field.required ? (
+          <span className="text-destructive" aria-hidden="true">
+            *
+          </span>
+        ) : null}
+      </Label>
       {field.type === "select" ? (
         <DashboardSelect
           value={value}
@@ -173,6 +180,7 @@ export function DashboardDataFieldControl({
       ) : field.type === "textarea" ? (
         <Textarea
           className="min-h-24"
+          aria-required={field.required || undefined}
           value={value === undefined || value === null ? "" : String(value)}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
@@ -191,6 +199,7 @@ export function DashboardDataFieldControl({
           min={field.type === "number" ? field.min : undefined}
           max={field.type === "number" ? field.max : undefined}
           step={field.type === "number" ? field.step : undefined}
+          aria-required={field.required || undefined}
           value={value === undefined || value === null ? "" : String(value)}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}

@@ -63,6 +63,7 @@ func TestLoginRequiredMiddlewareRejectsPublicPathLookalikesAndWrongMethods(t *te
 		path   string
 	}{
 		{method: http.MethodGet, path: "/api/login/signin"},
+		{method: http.MethodPost, path: "/api/login/signup"},
 		{method: http.MethodGet, path: "/api/login/signin/extra"},
 		{method: http.MethodGet, path: "/api/config/configs/extra"},
 		{method: http.MethodPost, path: "/api/user/current"},
