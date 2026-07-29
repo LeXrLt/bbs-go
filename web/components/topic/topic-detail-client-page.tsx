@@ -13,9 +13,7 @@ import { TopicHideContentLive } from "@/components/topic/topic-hide-content-live
 import { TopicMeta } from "@/components/topic/topic-meta"
 import { TopicSideActionBar } from "@/components/topic/topic-side-action-bar"
 import { TopicTags } from "@/components/topic/topic-tags"
-import { TopicToc } from "@/components/topic/topic-toc"
 import { TopicVoteCard } from "@/components/topic/topic-vote-card"
-import { UserInfo } from "@/components/user/user-info"
 import { useCurrentUser } from "@/components/app/app-provider"
 import { apiFetch } from "@/lib/api/client"
 import type {
@@ -132,17 +130,7 @@ export function TopicDetailClientPage({
       currentUserRoles.includes("owner"))
 
   return (
-    <MainShell
-      sideSize="360"
-      aside={
-        <>
-          <UserInfo user={topic.user} t={t} />
-          <TopicToc topic={topic} />
-        </>
-      }
-      containerClassName="side-size-360"
-      asideClassName="!h-auto self-stretch"
-    >
+    <MainShell>
       <div className="main-content no-padding no-bg space-y-4">
         {topic.status === 2 ? (
           <div className="my-5 w-full rounded-md border border-amber-300 bg-amber-100 px-4 py-3 text-amber-800">
