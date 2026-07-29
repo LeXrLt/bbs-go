@@ -155,7 +155,7 @@ export interface Comment {
   user: UserSummary
   entityType?: string
   entityId?: number | string
-  contentType?: "text" | "html" | string
+  contentType?: "text" | "html" | "markdown" | string
   content?: string
   imageList?: ImageInfo[]
   likeCount?: number

@@ -590,7 +590,8 @@ X-User-Token: <token>
 | --- | ---: | --- |
 | `entityType` | 是 | 帖子评论为 `topic`，文章评论为 `article`，二级回复为 `comment` |
 | `entityId` | 是 | 一级帖子评论传外部帖子 ID；二级回复传一级评论 ID |
-| `content` | 是 | 纯文本，服务端去除首尾空白并在响应时 HTML 转义 |
+| `content` | 是 | 评论原文；服务端会去除首尾空白 |
+| `contentType` | 否 | `text` 或 `markdown`；缺省为 `text`，其他值会被拒绝 |
 | `imageList` | 否 | JSON 字符串，例如 `[{"url":"https://..."}]` |
 | `quoteId` | 否 | 回复某条二级回复时传被引用的评论 ID |
 
@@ -599,7 +600,8 @@ curl -sS -X POST "$BBS_BASE_URL/api/comment/create" \
   -H "X-User-Token: $BBS_TOKEN" \
   --data-urlencode 'entityType=topic' \
   --data-urlencode "entityId=$TOPIC_ID" \
-  --data-urlencode 'content=这是脚本发布的评论'
+  --data-urlencode 'contentType=markdown' \
+  --data-urlencode 'content=这是脚本发布的 **Markdown** 评论'
 ```
 
 成功响应关键字段：
@@ -613,8 +615,8 @@ curl -sS -X POST "$BBS_BASE_URL/api/comment/create" \
     "id": 123,
     "entityType": "topic",
     "entityId": 456,
-    "contentType": "text",
-    "content": "这是脚本发布的评论",
+    "contentType": "markdown",
+    "content": "<p>这是脚本发布的 <strong>Markdown</strong> 评论</p>",
     "imageList": [],
     "commentCount": 0,
     "quoteId": 0,
@@ -624,6 +626,10 @@ curl -sS -X POST "$BBS_BASE_URL/api/comment/create" \
 ```
 
 保存 `data.id`，它是后续回复、查询回复和删除所需的十进制评论 ID。
+
+数据库保存评论原文和 `contentType`。创建、列表及回复查询响应中的 Markdown
+`content` 是服务端转换并清洗后的 HTML，不是原始 Markdown。省略 `contentType`
+的旧脚本仍按纯文本处理，已有纯文本评论也不会改变显示语义。
 
 当前服务只校验 `entityType` 非空和 `entityId` 可解码为正数，并未完整校验目标
 是否真实存在。脚本应只使用查询接口返回的真实对象 ID，并将 `entityType`
@@ -638,6 +644,7 @@ curl -sS -X POST "$BBS_BASE_URL/api/comment/create" \
   -H "X-User-Token: $BBS_TOKEN" \
   --data-urlencode 'entityType=comment' \
   --data-urlencode "entityId=$PARENT_COMMENT_ID" \
+  --data-urlencode 'contentType=markdown' \
   --data-urlencode 'content=这是对一级评论的回复'
 ```
 
@@ -649,6 +656,7 @@ curl -sS -X POST "$BBS_BASE_URL/api/comment/create" \
   --data-urlencode 'entityType=comment' \
   --data-urlencode "entityId=$PARENT_COMMENT_ID" \
   --data-urlencode "quoteId=$QUOTED_REPLY_ID" \
+  --data-urlencode 'contentType=markdown' \
   --data-urlencode 'content=这是引用回复'
 ```
 
@@ -872,6 +880,7 @@ class BBSGoClient:
         topic_id: str,
         content: str,
         image_urls: list[str] | None = None,
+        content_type: str = "markdown",
     ) -> dict[str, Any]:
         image_list = [{"url": url} for url in image_urls or []]
         return self.request(
@@ -880,6 +889,7 @@ class BBSGoClient:
             data={
                 "entityType": "topic",
                 "entityId": topic_id,
+                "contentType": content_type,
                 "content": content,
                 "imageList": json.dumps(image_list, ensure_ascii=False),
             },
@@ -890,6 +900,7 @@ class BBSGoClient:
         parent_comment_id: int,
         content: str,
         quote_id: int = 0,
+        content_type: str = "markdown",
     ) -> dict[str, Any]:
         return self.request(
             "POST",
@@ -898,6 +909,7 @@ class BBSGoClient:
                 "entityType": "comment",
                 "entityId": str(parent_comment_id),
                 "quoteId": quote_id,
+                "contentType": content_type,
                 "content": content,
             },
         )

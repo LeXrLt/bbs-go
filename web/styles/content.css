@@ -118,4 +118,152 @@
     padding: 0.75rem 1rem;
     text-align: left;
   }
+
+  .bbs-comment-content {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: inherit;
+    line-height: inherit;
+  }
+
+  .bbs-comment-content > :first-child {
+    margin-top: 0;
+  }
+
+  .bbs-comment-content > :last-child {
+    margin-bottom: 0;
+  }
+
+  .bbs-comment-content h1,
+  .bbs-comment-content h2,
+  .bbs-comment-content h3,
+  .bbs-comment-content h4,
+  .bbs-comment-content h5,
+  .bbs-comment-content h6 {
+    margin: 0.75rem 0 0.4rem;
+    border-bottom: 0;
+    padding-bottom: 0;
+    font-size: 1em;
+    line-height: 1.4;
+  }
+
+  .bbs-comment-content h1 {
+    font-size: 1.25em;
+  }
+
+  .bbs-comment-content h2 {
+    font-size: 1.15em;
+  }
+
+  .bbs-comment-content p,
+  .bbs-comment-content ul,
+  .bbs-comment-content ol,
+  .bbs-comment-content pre,
+  .bbs-comment-content blockquote,
+  .bbs-comment-content table {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .bbs-comment-content p,
+  .bbs-comment-content li {
+    line-height: inherit;
+  }
+
+  .bbs-comment-content li {
+    margin: 0.2rem 0;
+  }
+
+  .bbs-comment-content ul,
+  .bbs-comment-content ol {
+    padding-left: 1.25rem;
+  }
+
+  .bbs-comment-content pre {
+    max-width: 100%;
+    padding: 0.65rem;
+    font-size: 0.875em;
+    line-height: 1.55;
+  }
+
+  .bbs-comment-content blockquote {
+    border-left-width: 3px;
+    padding: 0.15rem 0.75rem;
+  }
+
+  .bbs-comment-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .bbs-comment-content th,
+  .bbs-comment-content td {
+    padding: 0.4rem 0.55rem;
+  }
+
+  .bbs-comment-content img {
+    margin: 0.5rem 0;
+    cursor: zoom-in;
+  }
+
+  .bbs-comment-content-quote {
+    color: var(--muted-foreground);
+  }
+
+  .bbs-comment-content-quote h1,
+  .bbs-comment-content-quote h2,
+  .bbs-comment-content-quote h3,
+  .bbs-comment-content-quote h4,
+  .bbs-comment-content-quote h5,
+  .bbs-comment-content-quote h6,
+  .bbs-comment-content-quote p,
+  .bbs-comment-content-quote ul,
+  .bbs-comment-content-quote ol,
+  .bbs-comment-content-quote pre,
+  .bbs-comment-content-quote blockquote,
+  .bbs-comment-content-quote table,
+  .bbs-comment-content-quote img {
+    margin-top: 0.3rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .comment-markdown-editor.md-editor {
+    --md-color: var(--foreground);
+    --md-hover-color: var(--foreground);
+    --md-bk-color: var(--muted);
+    --md-bk-color-outstand: var(--background);
+    --md-bk-hover-color: var(--background);
+    --md-border-color: var(--border);
+    --md-border-hover-color: var(--ring);
+    --md-border-active-color: var(--ring);
+    border: 0;
+    background: var(--muted);
+    font-family: inherit;
+  }
+
+  .comment-markdown-editor-focused.md-editor {
+    --md-bk-color: var(--background);
+    --md-bk-color-outstand: var(--muted);
+    --md-bk-hover-color: var(--muted);
+    background: var(--background);
+  }
+
+  .comment-markdown-editor .md-editor-toolbar-wrapper {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 4px;
+  }
+
+  .comment-markdown-editor .md-editor-toolbar-item {
+    margin: 0 1px;
+    padding: 0 3px;
+  }
+
+  .comment-markdown-editor .md-editor-preview {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
 }

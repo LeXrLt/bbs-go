@@ -143,6 +143,7 @@ vote:
 comment:
   invalid_params: "参数非法"
   content_required: "请输入评论内容"
+  content_type_invalid: "不支持的评论内容格式"
 
 favorite:
   article_not_found: "收藏的文章不存在"

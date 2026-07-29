@@ -13,18 +13,54 @@ import (
 
 // 是否是内部链接
 func IsInternalUrl(href string) bool {
-	if IsAnchor(href) {
-		return true
-	}
-	u, err := url.Parse(getBaseURL())
+	internal, err := isInternalURL(href, getBaseURL())
 	if err != nil {
 		slog.Error(err.Error(), slog.Any("err", err))
 		return false
 	}
-	if strings.TrimSpace(u.Host) == "" {
-		return strings.HasPrefix(href, "/")
+	return internal
+}
+
+func isInternalURL(href, baseURL string) (bool, error) {
+	href = strings.TrimSpace(href)
+	if href == "" {
+		return false, nil
 	}
-	return strings.Contains(href, u.Host)
+	// Browsers treat backslashes as slashes when resolving HTTP URLs. Match that
+	// behavior so \\host paths cannot be mistaken for internal relative links.
+	href = strings.ReplaceAll(href, `\`, "/")
+
+	if strings.HasPrefix(href, "//") {
+		authority := strings.TrimLeft(href, "/")
+		if authority == "" {
+			return false, nil
+		}
+		href = "//" + authority
+	}
+
+	target, err := url.Parse(href)
+	if err != nil {
+		return false, nil
+	}
+	if target.Scheme == "" && target.Host == "" {
+		return true, nil
+	}
+	if target.Host == "" || (target.Scheme != "" && !isHTTPScheme(target.Scheme)) {
+		return false, nil
+	}
+
+	base, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return false, err
+	}
+	if base.Host == "" {
+		return false, nil
+	}
+	return strings.EqualFold(target.Host, base.Host), nil
+}
+
+func isHTTPScheme(scheme string) bool {
+	return strings.EqualFold(scheme, "http") || strings.EqualFold(scheme, "https")
 }
 
 // 是否是锚链接

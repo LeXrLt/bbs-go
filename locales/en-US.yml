@@ -143,6 +143,7 @@ vote:
 comment:
   invalid_params: "Invalid request parameters"
   content_required: "Comment content is required"
+  content_type_invalid: "Comment content format is not supported"
 
 favorite:
   article_not_found: "Favorite article not found"

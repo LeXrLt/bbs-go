@@ -28,6 +28,7 @@ import {
   TextEditor,
   type TextEditorRef,
 } from "@/components/comment/text-editor"
+import { buildCommentCreateFields } from "@/components/comment/comment-payload"
 import { apiFetch, toFormData } from "@/lib/api/client"
 import type { Comment, EntityId, ImageInfo, PageData } from "@/lib/api/types"
 import { PERMISSIONS } from "@/lib/auth/permissions.generated"
@@ -49,21 +50,28 @@ function imageSrc(image: ImageInfo) {
   return image.url || image.preview || ""
 }
 
-function commentContent(comment: Comment, size: "normal" | "small" = "normal") {
+type CommentContentSize = "normal" | "small" | "quote"
+
+function CommentContent({
+  comment,
+  size = "normal",
+}: {
+  comment: Comment
+  size?: CommentContentSize
+}) {
   if (!comment.content) {
     return null
   }
 
   const className = cn(
-    "content mb-0 whitespace-pre-wrap text-foreground",
+    "bbs-content bbs-comment-content mb-0 text-foreground",
+    comment.contentType === "text" && "whitespace-pre-wrap",
     size === "normal"
       ? "mt-2.5 text-[15px] leading-7"
-      : "mt-1.5 text-sm leading-6"
+      : size === "small"
+        ? "mt-1.5 text-sm leading-6"
+        : "bbs-comment-content-quote my-1 text-xs leading-5 text-muted-foreground"
   )
-
-  if (comment.contentType === "text") {
-    return <div className={className}>{comment.content}</div>
-  }
 
   return <HtmlImagePreview html={comment.content} className={className} />
 }
@@ -147,7 +155,7 @@ function CommentInput({
     }
     lastClickTimeRef.current = now
 
-    if (!content) {
+    if (!content.trim()) {
       toast.error(t("component.comment.input.pleaseInput"))
       return
     }
@@ -159,12 +167,14 @@ function CommentInput({
     try {
       const data = await apiFetch<Comment>("/api/comment/create", {
         method: "POST",
-        body: toFormData({
-          entityType,
-          entityId,
-          content,
-          imageList: imageList.length ? JSON.stringify(imageList) : "",
-        }),
+        body: toFormData(
+          buildCommentCreateFields({
+            entityType,
+            entityId,
+            content,
+            imageList,
+          })
+        ),
       })
       onCreated(data)
       editorRef.current?.reset()
@@ -185,8 +195,8 @@ function CommentInput({
           ref={editorRef}
           content={content}
           imageList={imageList}
-          height={90}
-          focusHeight={120}
+          height={180}
+          focusHeight={220}
           disabled={sending}
           onContentChange={setContent}
           onImageListChange={setImageList}
@@ -199,10 +209,12 @@ function CommentInput({
 
 function InlineReplyEditor({
   value,
+  disabled,
   onChange,
   onSubmit,
 }: {
   value: ReplyValue
+  disabled?: boolean
   onChange: (value: ReplyValue) => void
   onSubmit: () => void
 }) {
@@ -217,7 +229,8 @@ function InlineReplyEditor({
       ref={editorRef}
       content={value.content}
       imageList={value.imageList}
-      height={80}
+      height={170}
+      disabled={disabled}
       onContentChange={(content) => onChange({ ...value, content })}
       onImageListChange={(imageList) => onChange({ ...value, imageList })}
       onSubmit={onSubmit}
@@ -238,6 +251,7 @@ function CommentSubList({
   const [replies, setReplies] = React.useState(data)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [replyQuoteId, setReplyQuoteId] = React.useState(0)
+  const [replySending, setReplySending] = React.useState(false)
   const [replyValue, setReplyValue] = React.useState<ReplyValue>({
     content: "",
     imageList: [],
@@ -323,24 +337,35 @@ function CommentSubList({
   }
 
   async function submitReply() {
+    if (!replyValue.content.trim()) {
+      toast.error(t("component.comment.input.pleaseInput"))
+      return
+    }
+    if (replySending) {
+      return
+    }
+
+    setReplySending(true)
     try {
       const ret = await apiFetch<Comment>("/api/comment/create", {
         method: "POST",
-        body: toFormData({
-          entityType: "comment",
-          entityId: commentId,
-          quoteId: replyQuoteId,
-          content: replyValue.content,
-          imageList: replyValue.imageList.length
-            ? JSON.stringify(replyValue.imageList)
-            : "",
-        }),
+        body: toFormData(
+          buildCommentCreateFields({
+            entityType: "comment",
+            entityId: commentId,
+            quoteId: replyQuoteId,
+            content: replyValue.content,
+            imageList: replyValue.imageList,
+          })
+        ),
       })
       setReplyQuoteId(0)
       setReplyValue({ content: "", imageList: [] })
       onReply(ret)
     } catch (error) {
       catchError(error)
+    } finally {
+      setReplySending(false)
     }
   }
 
@@ -421,7 +446,7 @@ function CommentSubList({
                 ) : null}
               </div>
               <div>
-                {commentContent(comment, "small")}
+                <CommentContent comment={comment} size="small" />
                 <CommentImages images={comment.imageList} size="small" />
                 {comment.quote ? (
                   <div className="relative my-1.5 box-border rounded border border-border bg-muted px-3 py-1 text-muted-foreground">
@@ -431,10 +456,7 @@ function CommentSubList({
                     >
                       ”
                     </span>
-                    <HtmlImagePreview
-                      className="content my-1 text-muted-foreground"
-                      html={comment.quote.content || ""}
-                    />
+                    <CommentContent comment={comment.quote} size="quote" />
                     <CommentImages
                       images={comment.quote.imageList}
                       size="quote"
@@ -505,6 +527,7 @@ function CommentSubList({
                 <div className="mt-2.5">
                   <InlineReplyEditor
                     value={replyValue}
+                    disabled={replySending}
                     onChange={setReplyValue}
                     onSubmit={() => void submitReply()}
                   />
@@ -567,6 +590,7 @@ function CommentItem({
     currentUser?.id === comment.user.id ||
     userHasPermission(currentUser, PERMISSIONS.DASHBOARD_COMMENT_DELETE)
   const [replyCommentId, setReplyCommentId] = React.useState(0)
+  const [replySending, setReplySending] = React.useState(false)
   const [replyValue, setReplyValue] = React.useState<ReplyValue>({
     content: "",
     imageList: [],
@@ -618,17 +642,26 @@ function CommentItem({
   }
 
   async function submitReply(parent: Comment) {
+    if (!replyValue.content.trim()) {
+      toast.error(t("component.comment.input.pleaseInput"))
+      return
+    }
+    if (replySending) {
+      return
+    }
+
+    setReplySending(true)
     try {
       const ret = await apiFetch<Comment>("/api/comment/create", {
         method: "POST",
-        body: toFormData({
-          entityType: "comment",
-          entityId: parent.id,
-          content: replyValue.content,
-          imageList: replyValue.imageList.length
-            ? JSON.stringify(replyValue.imageList)
-            : "",
-        }),
+        body: toFormData(
+          buildCommentCreateFields({
+            entityType: "comment",
+            entityId: parent.id,
+            content: replyValue.content,
+            imageList: replyValue.imageList,
+          })
+        ),
       })
       setReplyCommentId(0)
       setReplyValue({ content: "", imageList: [] })
@@ -636,6 +669,8 @@ function CommentItem({
       toast.success(t("component.comment.list.publishSuccess"))
     } catch (error) {
       catchError(error)
+    } finally {
+      setReplySending(false)
     }
   }
 
@@ -739,7 +774,7 @@ function CommentItem({
             </div>
           </div>
           <div>
-            {commentContent(comment)}
+            <CommentContent comment={comment} />
             <CommentImages images={comment.imageList} />
           </div>
           <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
@@ -816,6 +851,7 @@ function CommentItem({
             <div className="mt-2.5">
               <InlineReplyEditor
                 value={replyValue}
+                disabled={replySending}
                 onChange={setReplyValue}
                 onSubmit={() => void submitReply(comment)}
               />

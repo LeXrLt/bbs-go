@@ -4,8 +4,12 @@ import * as React from "react"
 import { Image as ImageIcon, Plus, X } from "lucide-react"
 
 import { PreviewableImage } from "@/components/common/image-preview"
+import {
+  MarkdownEditor,
+  type MarkdownEditorRef,
+} from "@/components/editor/markdown-editor"
+import { uploadEditorImage } from "@/components/editor/upload"
 import { Button } from "@/components/ui/button"
-import { apiFetch } from "@/lib/api/client"
 import type { ImageInfo } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n/provider"
 import { useToastActions } from "@/lib/toast"
@@ -14,12 +18,6 @@ import { cn } from "@/lib/utils"
 export type TextEditorRef = {
   focus: () => void
   reset: () => void
-}
-
-async function uploadImage(file: File) {
-  const body = new FormData()
-  body.append("image", file, file.name)
-  return apiFetch<{ url: string }>("/api/upload", { method: "POST", body })
 }
 
 const COMMENT_IMAGE_LIMIT = 9
@@ -44,7 +42,7 @@ export const TextEditor = React.forwardRef<
   {
     content,
     imageList,
-    height = 80,
+    height = 160,
     focusHeight = 0,
     disabled,
     onContentChange,
@@ -56,7 +54,7 @@ export const TextEditor = React.forwardRef<
   const { t } = useI18n()
   const { catchError, msgWarning } = useToastActions()
   const wrapperRef = React.useRef<HTMLDivElement>(null)
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const markdownEditorRef = React.useRef<MarkdownEditorRef>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
   const isOpeningImagePickerRef = React.useRef(false)
   const unlockImagePickerTimerRef = React.useRef<number | null>(null)
@@ -68,11 +66,12 @@ export const TextEditor = React.forwardRef<
 
   React.useImperativeHandle(ref, () => ({
     focus() {
-      textareaRef.current?.focus()
+      markdownEditorRef.current?.focus()
     },
     reset() {
       setIsFocus(false)
       setShowImageUpload(false)
+      window.setTimeout(() => markdownEditorRef.current?.resetHistory(), 0)
     },
   }))
 
@@ -96,6 +95,9 @@ export const TextEditor = React.forwardRef<
 
   const uploadFiles = React.useCallback(
     async (files: File[]) => {
+      if (disabled) {
+        return
+      }
       const images = files.filter((file) => file.type.startsWith("image/"))
       if (!images.length || imageUploading) {
         return
@@ -124,24 +126,34 @@ export const TextEditor = React.forwardRef<
       try {
         const uploaded: ImageInfo[] = []
         for (const file of uploadImages) {
-          const result = await uploadImage(file)
-          uploaded.push({ url: result.url })
+          uploaded.push({ url: await uploadEditorImage(file) })
         }
         onImageListChange([...(imageList || []), ...uploaded])
       } catch (error) {
         catchError(error)
       } finally {
         setImageUploading(false)
-        textareaRef.current?.focus()
+        markdownEditorRef.current?.focus()
       }
     },
-    [catchError, imageList, imageUploading, msgWarning, onImageListChange, t]
+    [
+      catchError,
+      disabled,
+      imageList,
+      imageUploading,
+      msgWarning,
+      onImageListChange,
+      t,
+    ]
   )
 
   function openImagePicker() {
+    if (disabled) {
+      return
+    }
     setShowImageUpload(true)
     setIsFocus(true)
-    textareaRef.current?.focus()
+    markdownEditorRef.current?.focus()
     if (!canAddImage) {
       msgWarning(
         t("component.imageUpload.countLimitError", {
@@ -156,6 +168,9 @@ export const TextEditor = React.forwardRef<
   }
 
   function submit() {
+    if (disabled) {
+      return
+    }
     if (imageUploading) {
       msgWarning(t("component.textEditor.pleaseWait"))
       return
@@ -163,7 +178,10 @@ export const TextEditor = React.forwardRef<
     onSubmit()
   }
 
-  function onPaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+  function onPaste(event: React.ClipboardEvent<HTMLDivElement>) {
+    if (disabled) {
+      return
+    }
     const files = Array.from(event.clipboardData.items)
       .filter((item) => item.type.startsWith("image/"))
       .map((item) => item.getAsFile())
@@ -174,10 +192,14 @@ export const TextEditor = React.forwardRef<
     }
 
     event.preventDefault()
+    event.stopPropagation()
     void uploadFiles(files)
   }
 
-  function onDrop(event: React.DragEvent<HTMLTextAreaElement>) {
+  function onDrop(event: React.DragEvent<HTMLDivElement>) {
+    if (disabled) {
+      return
+    }
     const files = Array.from(event.dataTransfer.files).filter((file) =>
       file.type.startsWith("image/")
     )
@@ -217,40 +239,44 @@ export const TextEditor = React.forwardRef<
       )}
       style={{ height: dynamicHeight }}
       onBlur={onBlur}
+      onPasteCapture={onPaste}
+      onDropCapture={onDrop}
+      onKeyDownCapture={(event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          event.preventDefault()
+          submit()
+        }
+      }}
     >
-      <textarea
-        ref={textareaRef}
-        value={content}
-        placeholder={t("component.textEditor.placeholder")}
-        className={cn(
-          "block w-full flex-1 resize-none rounded-t-lg border-0 bg-muted p-2.5 font-[inherit] leading-[1.8] text-foreground outline-0 overscroll-contain",
-          isFocus && "bg-background"
-        )}
-        disabled={disabled}
-        onFocus={() => {
-          setIsFocus(true)
-          if (currentImages.length) {
-            setShowImageUpload(true)
-          }
-        }}
-        onInput={(event) => {
-          onContentChange(event.currentTarget.value)
-          if (event.currentTarget.value) {
+      <div className="min-h-0 flex-1 overflow-hidden rounded-t-lg">
+        <MarkdownEditor
+          ref={markdownEditorRef}
+          value={content}
+          placeholder={t("component.textEditor.placeholder")}
+          height="100%"
+          compact
+          disabled={disabled}
+          className={cn(
+            "comment-markdown-editor",
+            isFocus && "comment-markdown-editor-focused"
+          )}
+          onChange={(value) => {
+            onContentChange(value)
+            if (value) {
+              setIsFocus(true)
+            }
+          }}
+          onFocus={() => {
             setIsFocus(true)
-          }
-        }}
-        onPaste={onPaste}
-        onDrop={onDrop}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            event.preventDefault()
-            submit()
-          }
-        }}
-      />
+            if (currentImages.length) {
+              setShowImageUpload(true)
+            }
+          }}
+        />
+      </div>
       {showImageUpload ? (
         <div
-          className="flex h-[90px] flex-wrap gap-2 overflow-auto p-2.5"
+          className="flex h-[90px] shrink-0 flex-wrap gap-2 overflow-auto p-2.5"
           onMouseDown={(event) => event.preventDefault()}
         >
           {currentImages.map((image, index) => (
@@ -267,7 +293,10 @@ export const TextEditor = React.forwardRef<
               />
               <button
                 type="button"
-                className="absolute top-1 right-1 hidden rounded bg-black/50 p-0.5 text-white group-hover:block"
+                aria-label={t("component.textEditor.removeImage")}
+                title={t("component.textEditor.removeImage")}
+                disabled={disabled}
+                className="absolute top-1 right-1 rounded bg-black/60 p-0.5 text-white opacity-80 hover:opacity-100 focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={() =>
                   onImageListChange(
                     imageList.filter((_, imageIndex) => imageIndex !== index)
@@ -281,7 +310,10 @@ export const TextEditor = React.forwardRef<
           {!imageUploading && canAddImage ? (
             <button
               type="button"
-              className="flex h-[60px] w-[60px] items-center justify-center rounded border border-dashed border-border bg-background text-muted-foreground hover:border-primary hover:text-primary"
+              aria-label={t("component.textEditor.addImage")}
+              title={t("component.textEditor.addImage")}
+              disabled={disabled}
+              className="flex h-[60px] w-[60px] items-center justify-center rounded border border-dashed border-border bg-background text-muted-foreground hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
               onClick={openImagePicker}
             >
               <Plus className="h-5 w-5" />
@@ -296,14 +328,17 @@ export const TextEditor = React.forwardRef<
       ) : null}
       <div
         className={cn(
-          "flex h-9 items-center justify-between rounded-b-lg bg-muted px-2.5 py-[3px]",
+          "flex h-9 shrink-0 items-center justify-between rounded-b-lg bg-muted px-2.5 py-[3px]",
           isFocus && "bg-background"
         )}
       >
         <button
           type="button"
+          aria-label={t("component.textEditor.addImage")}
+          title={t("component.textEditor.addImage")}
+          disabled={disabled}
           className={cn(
-            "flex cursor-pointer select-none items-center gap-1 text-muted-foreground hover:text-primary",
+            "flex cursor-pointer items-center gap-1 text-muted-foreground select-none hover:text-primary disabled:cursor-not-allowed disabled:opacity-50",
             showImageUpload && "font-medium text-primary"
           )}
           onClick={openImagePicker}

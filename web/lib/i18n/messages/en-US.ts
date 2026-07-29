@@ -1024,6 +1024,8 @@ const enUS = {
       placeholder: "Write your content",
       publish: "Publish",
       pleaseWait: "Please wait for image upload to complete",
+      addImage: "Add image",
+      removeImage: "Remove image",
     },
     richTextEditor: {
       placeholder: "Type / to insert content",

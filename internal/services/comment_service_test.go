@@ -3,8 +3,10 @@ package services
 import (
 	"bbs-go/internal/models"
 	"bbs-go/internal/models/constants"
+	"bbs-go/internal/models/req"
 	"bbs-go/internal/permissions"
 	"bbs-go/internal/pkg/config"
+	"bbs-go/internal/pkg/locales"
 	"bbs-go/internal/repositories"
 	"testing"
 
@@ -31,6 +33,104 @@ func mustCreateComment(t *testing.T, comment *models.Comment) *models.Comment {
 		t.Fatalf("create comment: %v", err)
 	}
 	return comment
+}
+
+func TestCommentServicePublishDefaultsToText(t *testing.T) {
+	setupCommentServiceTestDB(t)
+
+	comment, err := CommentService.Publish(0, req.CreateCommentReq{
+		EntityType: constants.EntityArticle,
+		EntityId:   "1",
+		Content:    "  plain **text**  ",
+	})
+	if err != nil {
+		t.Fatalf("publish comment: %v", err)
+	}
+	if comment.ContentType != constants.ContentTypeText {
+		t.Fatalf("expected default content type %q, got %q", constants.ContentTypeText, comment.ContentType)
+	}
+	if comment.Content != "plain **text**" {
+		t.Fatalf("expected trimmed source content, got %q", comment.Content)
+	}
+
+	stored := CommentService.Get(comment.Id)
+	if stored == nil {
+		t.Fatal("expected persisted comment")
+	}
+	if stored.ContentType != constants.ContentTypeText || stored.Content != comment.Content {
+		t.Fatalf("unexpected persisted comment: %#v", stored)
+	}
+}
+
+func TestCommentServicePublishAcceptsExplicitText(t *testing.T) {
+	setupCommentServiceTestDB(t)
+
+	comment, err := CommentService.Publish(0, req.CreateCommentReq{
+		EntityType:  constants.EntityArticle,
+		EntityId:    "1",
+		Content:     "plain text",
+		ContentType: constants.ContentTypeText,
+	})
+	if err != nil {
+		t.Fatalf("publish text comment: %v", err)
+	}
+	if comment.ContentType != constants.ContentTypeText {
+		t.Fatalf("expected text content type, got %q", comment.ContentType)
+	}
+}
+
+func TestCommentServicePublishStoresMarkdownSource(t *testing.T) {
+	setupCommentServiceTestDB(t)
+	source := "## Heading\n\n**bold**"
+
+	comment, err := CommentService.Publish(0, req.CreateCommentReq{
+		EntityType:  constants.EntityArticle,
+		EntityId:    "1",
+		Content:     source,
+		ContentType: constants.ContentTypeMarkdown,
+	})
+	if err != nil {
+		t.Fatalf("publish markdown comment: %v", err)
+	}
+	if comment.ContentType != constants.ContentTypeMarkdown {
+		t.Fatalf("expected markdown content type, got %q", comment.ContentType)
+	}
+	if comment.Content != source {
+		t.Fatalf("expected markdown source to be preserved, got %q", comment.Content)
+	}
+
+	stored := CommentService.Get(comment.Id)
+	if stored == nil || stored.ContentType != constants.ContentTypeMarkdown || stored.Content != source {
+		t.Fatalf("unexpected persisted markdown comment: %#v", stored)
+	}
+}
+
+func TestCommentServicePublishRejectsUnsupportedContentTypes(t *testing.T) {
+	setupCommentServiceTestDB(t)
+
+	for _, contentType := range []constants.ContentType{constants.ContentTypeHtml, "unknown"} {
+		t.Run(string(contentType), func(t *testing.T) {
+			comment, err := CommentService.Publish(0, req.CreateCommentReq{
+				EntityType:  constants.EntityArticle,
+				EntityId:    "1",
+				Content:     "content",
+				ContentType: contentType,
+			})
+			if err == nil {
+				t.Fatalf("expected content type %q to be rejected", contentType)
+			}
+			if err.Error() != locales.Get("comment.content_type_invalid") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if comment != nil {
+				t.Fatalf("expected no comment, got %#v", comment)
+			}
+		})
+	}
+
+	if count := CommentService.Count(sqls.NewCnd()); count != 0 {
+		t.Fatalf("expected rejected comments not to be persisted, got %d", count)
+	}
 }
 
 func TestCommentService_DeleteByUserRejectsNonAuthorWithoutPermission(t *testing.T) {

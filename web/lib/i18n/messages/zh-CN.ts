@@ -1005,6 +1005,8 @@ const zhCN = {
       placeholder: "请输入您要发表的内容",
       publish: "发布",
       pleaseWait: "请先等待图片上传完成",
+      addImage: "添加图片",
+      removeImage: "移除图片",
     },
     richTextEditor: {
       placeholder: "输入 / 插入内容",

@@ -100,6 +100,9 @@ func (s *commentService) DeleteByUser(user *models.User, id int64) error {
 // Publish 发表评论
 func (s *commentService) Publish(userId int64, form req.CreateCommentReq) (*models.Comment, error) {
 	form.Content = strings.TrimSpace(form.Content)
+	if form.ContentType == "" {
+		form.ContentType = constants.ContentTypeText
+	}
 	entityId := form.DecodedEntityId()
 	if strs.IsBlank(form.EntityType) {
 		return nil, errors.New(locales.Get("comment.invalid_params"))
@@ -110,13 +113,16 @@ func (s *commentService) Publish(userId int64, form req.CreateCommentReq) (*mode
 	if strs.IsBlank(form.Content) {
 		return nil, errors.New(locales.Get("comment.content_required"))
 	}
+	if form.ContentType != constants.ContentTypeText && form.ContentType != constants.ContentTypeMarkdown {
+		return nil, errors.New(locales.Get("comment.content_type_invalid"))
+	}
 
 	comment := &models.Comment{
 		UserId:      userId,
 		EntityType:  form.EntityType,
 		EntityId:    entityId,
 		Content:     form.Content,
-		ContentType: constants.ContentTypeText,
+		ContentType: form.ContentType,
 		QuoteId:     form.QuoteId,
 		Status:      constants.StatusOk,
 		UserAgent:   form.UserAgent,
