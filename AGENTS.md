@@ -64,5 +64,3 @@ node scripts/test-site-access.mjs
 git diff --check
 docker compose -f docker-compose.postgresql.yml ps
 ```
-
-工作区中的 `docs/shareholding_change_formal.md` 是用户文件，除非明确要求，不得修改或删除。
