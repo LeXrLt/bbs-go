@@ -36,6 +36,7 @@ logs/*
 admin/*
 res/uploads/*
 data/*
+docker-data-postgresql/
 
 internal/web*
 

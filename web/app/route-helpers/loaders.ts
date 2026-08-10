@@ -2,6 +2,11 @@ import { redirect } from "react-router"
 
 import { apiFetch } from "@/lib/api/client"
 import type { Article, PageData, Tag, Topic, Category } from "@/lib/api/types"
+import {
+  normalizeTopicRoleName,
+  TOPIC_ROLE_NAME_PARAM,
+  type TopicRoleName,
+} from "@/lib/topic-role-filter"
 
 import { getCurrentUser } from "./auth"
 
@@ -10,6 +15,7 @@ export type TopicListRouteData = {
   categories: Category[]
   category?: Category | null
   tag?: Tag | null
+  roleName?: TopicRoleName | ""
 }
 
 const qaStatusOptions = ["", "unsolved", "solved"]
@@ -86,6 +92,7 @@ export async function loadTopics(params: {
   tagId?: string | number
   qaStatus?: string
   sort?: string
+  roleName?: TopicRoleName | ""
 }) {
   const path = params.tagId ? "/api/topic/tag/topics" : "/api/topic/topics"
 
@@ -97,6 +104,7 @@ export async function loadTopics(params: {
       tagId: params.tagId,
       qaStatus: params.qaStatus,
       sort: params.sort,
+      roleName: params.roleName,
     },
   })
 }
@@ -104,11 +112,16 @@ export async function loadTopics(params: {
 export async function loadTopicListRouteData(
   request?: Request
 ): Promise<TopicListRouteData> {
+  const roleName = request
+    ? normalizeTopicRoleName(
+        new URL(request.url).searchParams.get(TOPIC_ROLE_NAME_PARAM)
+      )
+    : ""
   const [topics, categories] = await Promise.all([
-    loadTopics({ request }),
+    loadTopics({ request, roleName }),
     loadCategories(request),
   ])
-  return { topics, categories }
+  return { topics, categories, roleName }
 }
 
 export async function loadCategoryRouteData({
@@ -126,13 +139,21 @@ export async function loadCategoryRouteData({
   }
 
   const categoryId = resolveCategoryId(id)
+  const roleName =
+    categoryId === 0
+      ? normalizeTopicRoleName(
+          new URL(request?.url || "http://local").searchParams.get(
+            TOPIC_ROLE_NAME_PARAM
+          )
+        )
+      : ""
   const filters = await getCategoryFilters({ request, categoryId })
   const [topics, categories, category] = await Promise.all([
-    loadTopics({ request, categoryId, ...filters }),
+    loadTopics({ request, categoryId, roleName, ...filters }),
     loadCategories(request),
     loadCategory(request, categoryId),
   ])
-  return { topics, categories, category }
+  return { topics, categories, category, roleName }
 }
 
 export async function loadTopicTagRouteData({
@@ -207,7 +228,9 @@ export async function loadArticleListRouteData(params: {
 }): Promise<ArticleListRouteData> {
   const [articles, tag] = await Promise.all([
     loadArticles(params),
-    params.tagId ? loadTag(params.request, params.tagId) : Promise.resolve(null),
+    params.tagId
+      ? loadTag(params.request, params.tagId)
+      : Promise.resolve(null),
   ])
   return Object.assign(articles, { tag })
 }

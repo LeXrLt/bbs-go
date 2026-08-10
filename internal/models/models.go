@@ -10,7 +10,7 @@ var Models = []interface{}{
 	&Migration{},
 	&UserRole{}, &Role{}, &Permission{}, &RolePermission{}, &DictType{}, &Dict{},
 
-	&User{}, &UserToken{}, &ThirdUser{}, &Tag{}, &Article{}, &ArticleTag{}, &Comment{}, &Favorite{}, &Topic{}, &Category{},
+	&User{}, &UserToken{}, &ThirdUser{}, &Tag{}, &Article{}, &ArticleTag{}, &Comment{}, &Favorite{}, &Topic{}, &TopicVisibleEvent{}, &Category{},
 	&TopicTag{}, &UserLike{}, &Message{}, &SysConfig{}, &Link{},
 	&TaskConfig{}, &UserTaskEvent{}, &UserTaskLog{},
 	&Badge{}, &UserBadge{},
@@ -258,6 +258,14 @@ type Topic struct {
 	IpLocation        string                `gorm:"size:64" json:"ipLocation" form:"ipLocation"`                                                                                               // IP属地
 	CreateTime        int64                 `gorm:"index:idx_topic_create_time" json:"createTime" form:"createTime"`                                                                           // 创建时间
 	ExtraData         string                `gorm:"type:text" json:"extraData" form:"extraData"`                                                                                               // 扩展数据
+}
+
+// TopicVisibleEvent records each transition that makes a topic visible.
+// Its auto-increment ID is the cursor used by role-specific new-topic notices.
+type TopicVisibleEvent struct {
+	Model
+	TopicId    int64 `gorm:"type:bigint;not null;index:idx_topic_visible_event_topic_id" json:"topicId" form:"topicId"`
+	CreateTime int64 `gorm:"type:bigint;not null" json:"createTime" form:"createTime"`
 }
 
 // Vote 投票

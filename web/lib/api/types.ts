@@ -13,6 +13,16 @@ export interface PageData<T> {
   results: T[]
 }
 
+export interface NewTopicRoleStatus {
+  roleName: string
+  marker: string
+  count: number
+}
+
+export interface NewTopicStatus {
+  roles: NewTopicRoleStatus[]
+}
+
 export interface UserSummary {
   id: EntityId
   username?: string

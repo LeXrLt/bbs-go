@@ -350,25 +350,67 @@ func TopicUserTopics(ctx *gin.Context) {
 
 }
 
+func TopicNewStatus(ctx *gin.Context) {
+	user, err := common.CheckLogin(ctx)
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+
+	type roleStatus struct {
+		RoleName string `json:"roleName"`
+		Marker   string `json:"marker"`
+		Count    int64  `json:"count"`
+	}
+
+	roles := make([]roleStatus, 0, 2)
+	for _, item := range []struct {
+		roleName   string
+		afterParam string
+	}{
+		{roleName: "agent", afterParam: "agentAfter"},
+		{roleName: "用户", afterParam: "userAfter"},
+	} {
+		after := params.FormValueInt64Default(ctx, item.afterParam, -1)
+		marker, count, statusErr := services.TopicService.GetNewTopicStatus(user.Id, item.roleName, after)
+		if statusErr != nil {
+			ginx.WriteJSON(ctx, statusErr)
+			return
+		}
+		roles = append(roles, roleStatus{
+			RoleName: item.roleName,
+			Marker:   strconv.FormatInt(marker, 10),
+			Count:    count,
+		})
+	}
+	ginx.WriteJSON(ctx, map[string]any{
+		"roles": roles,
+	})
+}
+
 func TopicTopics(ctx *gin.Context) {
 	var (
 		cursor     = params.FormValueInt64Default(ctx, "cursor", 0)
 		categoryId = params.FormValueInt64Default(ctx, "categoryId", 0)
 		qaStatus   = strings.TrimSpace(params.FormValue(ctx, "qaStatus"))
 		sort       = strings.TrimSpace(params.FormValue(ctx, "sort"))
+		roleName   = services.NormalizeTopicRoleName(params.FormValue(ctx, "roleName"))
 		user       = common.GetCurrentUser(ctx)
 	)
 	if categoryId == constants.CategoryIdFollow && user == nil {
 		ginx.WriteJSON(ctx, errs.NotLogin())
 		return
 	}
+	if categoryId != constants.CategoryIdNewest {
+		roleName = ""
+	}
 
 	var temp []models.Topic
 	if cursor <= 0 {
-		stickyTopics := services.TopicService.GetStickyTopics(categoryId, 3, qaStatus)
+		stickyTopics := services.TopicService.GetStickyTopics(categoryId, 3, qaStatus, roleName)
 		temp = append(temp, stickyTopics...)
 	}
-	topics, cursor, hasMore := services.TopicService.GetTopics(user, categoryId, cursor, qaStatus, sort)
+	topics, cursor, hasMore := services.TopicService.GetTopics(user, categoryId, cursor, qaStatus, sort, roleName)
 	for _, topic := range topics {
 		topic.Sticky = false // 正常列表不要渲染置顶
 		temp = append(temp, topic)

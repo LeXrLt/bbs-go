@@ -33,14 +33,21 @@ export function meta({
 }
 
 export function TopicListRoute({ title }: { title?: string }) {
-  const { topics, categories } = useLoaderData() as TopicListRouteData
+  const {
+    topics,
+    categories,
+    roleName = "",
+  } = useLoaderData() as TopicListRouteData
   const { t } = useI18n()
   useDocumentTitle(title)
 
   return (
     <MainShell aside={<HomeAside />}>
       <div className="topics-wrapper">
-        <TopicsNavContent initialCategories={categories} currentCategoryId={0} />
+        <TopicsNavContent
+          initialCategories={categories}
+          currentCategoryId={0}
+        />
         <div className="topics-main">
           <div className="rounded-lg bg-background">
             <TopicFeedTabs currentCategoryId={0} />
@@ -50,14 +57,14 @@ export function TopicListRoute({ title }: { title?: string }) {
               initialHasMore={topics.hasMore}
               initialLoad={false}
               autoLoadOnScroll
-              resetKey="/api/topic/topics"
+              resetKey={`/api/topic/topics:${roleName}`}
               labels={{
                 loadMore: t("common.loadMore.loadMore"),
                 noMore: t("common.loadMore.noMore"),
               }}
               loadPage={({ cursor }) =>
                 apiFetch<PageData<Topic>>("/api/topic/topics", {
-                  params: { cursor },
+                  params: { cursor, roleName },
                 })
               }
               renderItems={(items) => (
