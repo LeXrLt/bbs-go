@@ -17,6 +17,10 @@ import type { PageData, Tag, Topic, Category } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n/provider"
 import { useRouteData, useRouteSegment } from "@/lib/spa-route"
 import { useDocumentTitle } from "@/lib/use-document-title"
+import {
+  normalizeTopicRoleName,
+  TOPIC_ROLE_NAME_PARAM,
+} from "@/lib/topic-role-filter"
 import { cn } from "@/lib/utils"
 
 function resolveCategoryId(id: string) {
@@ -84,7 +88,9 @@ export function TopicTagClientPage({
               renderEmpty={() => <EmptyState title={t("common.noData")} />}
             />
           </div>
-          {currentTag?.name ? <span className="sr-only">{currentTag.name}</span> : null}
+          {currentTag?.name ? (
+            <span className="sr-only">{currentTag.name}</span>
+          ) : null}
         </div>
       </div>
     </MainShell>
@@ -102,9 +108,9 @@ export function NodeTopicClientPage({
   const { t } = useI18n()
   const load = React.useCallback(
     () =>
-      apiFetch<Category>("/api/topic/category", { params: { categoryId } }).catch(
-        (): Category => ({ id: categoryId, name: "", children: [] })
-      ),
+      apiFetch<Category>("/api/topic/category", {
+        params: { categoryId },
+      }).catch((): Category => ({ id: categoryId, name: "", children: [] })),
     [categoryId]
   )
   const { data: node } = useRouteData(`category:${id}`, load)
@@ -134,11 +140,18 @@ export function NodeTopicClientPage({
       ? currentRootNode.children
       : []
   const isQaNode = categoryId > 0 && currentNode?.type === "qa"
-  const isNormalNode = categoryId > 0 && currentNode && currentNode.type !== "qa"
+  const isNormalNode =
+    categoryId > 0 && currentNode && currentNode.type !== "qa"
   const qaStatusValue = searchParams.get("qaStatus") || ""
   const qaStatus = qaStatusOptions.includes(qaStatusValue) ? qaStatusValue : ""
   const sortValue = searchParams.get("sort") || ""
-  const normalSort = sortOptions.includes(sortValue) ? sortValue : "latestPublish"
+  const normalSort = sortOptions.includes(sortValue)
+    ? sortValue
+    : "latestPublish"
+  const roleName =
+    categoryId === 0
+      ? normalizeTopicRoleName(searchParams.get(TOPIC_ROLE_NAME_PARAM))
+      : ""
   const currentFilters = isQaNode
     ? [
         { value: "", label: t("pages.qa.filterAll") },
@@ -157,9 +170,14 @@ export function NodeTopicClientPage({
           },
         ]
       : []
-  const currentFilterValue = isQaNode ? qaStatus : isNormalNode ? normalSort : ""
+  const currentFilterValue = isQaNode
+    ? qaStatus
+    : isNormalNode
+      ? normalSort
+      : ""
   const currentFilterLabel =
-    currentFilters.find((item) => item.value === currentFilterValue)?.label || ""
+    currentFilters.find((item) => item.value === currentFilterValue)?.label ||
+    ""
   useDocumentTitle(currentNode?.name, t("pages.topics.title"))
   const labels = {
     loadMore: t("common.loadMore.loadMore"),
@@ -225,9 +243,7 @@ export function NodeTopicClientPage({
             />
             {currentFilters.length > 0 ? (
               <div className="flex justify-between border-b border-border px-4 py-3">
-                <div className="text-base font-bold">
-                  {currentFilterLabel}
-                </div>
+                <div className="text-base font-bold">{currentFilterLabel}</div>
                 <div className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-muted p-1">
                   {currentFilters.map((item) => {
                     const selected = item.value === currentFilterValue
@@ -257,7 +273,7 @@ export function NodeTopicClientPage({
               initialHasMore={initialData?.topics?.hasMore || false}
               initialLoad={!initialData?.topics}
               autoLoadOnScroll
-              resetKey={`category:${categoryId}:${currentNode?.type || ""}:${currentFilterValue}`}
+              resetKey={`category:${categoryId}:${currentNode?.type || ""}:${currentFilterValue}:${roleName}`}
               labels={labels}
               loadPage={({ cursor }) =>
                 apiFetch<PageData<Topic>>("/api/topic/topics", {
@@ -266,6 +282,7 @@ export function NodeTopicClientPage({
                     cursor,
                     ...(isQaNode && qaStatus ? { qaStatus } : {}),
                     ...(isNormalNode ? { sort: normalSort } : {}),
+                    ...(roleName ? { roleName } : {}),
                   },
                 })
               }

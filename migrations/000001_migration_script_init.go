@@ -16,7 +16,6 @@ import (
 )
 
 type roleSeed struct {
-	ID     int64
 	Type   int
 	Name   string
 	Code   string
@@ -68,7 +67,6 @@ func migrate_init() error {
 			}
 
 			role := &models.Role{
-				Model:      models.Model{Id: r.ID},
 				Type:       r.Type,
 				Name:       r.Name,
 				Code:       r.Code,
@@ -99,7 +97,6 @@ func migrate_init() error {
 			}
 
 			category := &models.Category{
-				Model:       models.Model{Id: n.ID},
 				Name:        n.Name,
 				Description: n.Description,
 				Logo:        n.Logo,
@@ -174,7 +171,7 @@ func seedForLanguage() seedData {
 	if lang == config.LanguageEnUS {
 		return seedData{
 			Roles: []roleSeed{
-				{ID: 1, Type: constants.RoleTypeSystem, Name: "Owner", Code: constants.RoleOwner, SortNo: 0, Remark: "Owner with highest privileges", Status: constants.StatusOk},
+				{Type: constants.RoleTypeSystem, Name: "Owner", Code: constants.RoleOwner, SortNo: 0, Remark: "Owner with highest privileges", Status: constants.StatusOk},
 			},
 			Categories: []categorySeed{
 				{ID: 1, Name: "Default", Description: "", Logo: "", SortNo: 0, Status: constants.StatusOk},
@@ -210,7 +207,7 @@ func seedForLanguage() seedData {
 
 	return seedData{
 		Roles: []roleSeed{
-			{ID: 1, Type: constants.RoleTypeSystem, Name: "超级管理员", Code: constants.RoleOwner, SortNo: 0, Remark: "超级管理员拥有最高权限", Status: constants.StatusOk},
+			{Type: constants.RoleTypeSystem, Name: "超级管理员", Code: constants.RoleOwner, SortNo: 0, Remark: "超级管理员拥有最高权限", Status: constants.StatusOk},
 		},
 		Categories: []categorySeed{
 			{ID: 1, Name: "默认节点", Description: "", Logo: "", SortNo: 0, Status: constants.StatusOk},

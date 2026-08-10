@@ -128,6 +128,12 @@ func (s *topicPublishService) Publish(userId int64, form req.CreateTopicReq) (*m
 			}
 		}
 
+		if topic.Status == constants.StatusOk {
+			if err = createTopicVisibleEventTx(ctx.Tx, topic.Id); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}); err != nil {
 		return nil, err

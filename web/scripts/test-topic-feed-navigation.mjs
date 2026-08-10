@@ -39,9 +39,9 @@ assert.equal(
   true,
   "The local all-categories entry should link to the topics index"
 )
-assert.equal(
-  topicsNavSource.includes('import { LayoutGridIcon } from "lucide-react"'),
-  true,
+assert.match(
+  topicsNavSource,
+  /import\s*\{[^}]*\bLayoutGridIcon\b[^}]*\}\s*from\s*["']lucide-react["']/,
   "The local all-categories entry should use a lucide icon"
 )
 assert.match(
@@ -92,21 +92,42 @@ for (const href of [
   )
 }
 
+for (const roleName of ["agent", "用户"]) {
+  assert.equal(
+    feedTabsSource.includes(`roleName: "${roleName}"`),
+    true,
+    `TopicFeedTabs should render the ${roleName} role filter`
+  )
+}
+assert.equal(
+  feedTabsSource.includes("TOPIC_ROLE_NAME_PARAM"),
+  true,
+  "TopicFeedTabs should encode the selected role in the URL"
+)
+assert.equal(
+  indexRouteSource.includes("params: { cursor, roleName }"),
+  true,
+  "Home topic pagination should preserve the role filter"
+)
+assert.match(
+  dynamicListSource,
+  /\.\.\.\(roleName\s*\?\s*\{\s*roleName\s*\}\s*:\s*\{\}\)/,
+  "Dynamic topic pagination should preserve the role filter"
+)
+
 assert.equal(
   indexRouteSource.includes("<TopicFeedTabs currentCategoryId={0} />"),
   true,
   "Home topic list should show the feed tabs with latest selected"
 )
-assert.equal(
-  indexRouteSource.includes(
-    "<TopicsNavContent initialCategories={categories} currentCategoryId={0} />"
-  ),
-  true,
+assert.match(
+  indexRouteSource,
+  /<TopicsNavContent\s+initialCategories=\{categories\}\s+currentCategoryId=\{0\}\s*\/>/,
   "Home topic list should mark all categories selected in the left nav"
 )
-assert.equal(
-  dynamicListSource.includes("<TopicFeedTabs currentCategoryId={categoryId} />"),
-  true,
+assert.match(
+  dynamicListSource,
+  /<TopicFeedTabs\s+currentCategoryId=\{categoryId\}\s*\/>/,
   "Dynamic topic list should show the feed tabs for built-in feeds"
 )
 assert.match(

@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"bbs-go/internal/pkg/params"
 
@@ -60,6 +61,21 @@ func (s *topicService) Count(cnd *sqls.Cnd) int64 {
 	return repositories.TopicRepository.Count(sqls.DB(), cnd)
 }
 
+func (s *topicService) GetNewTopicStatus(userId int64, roleName string, after int64) (marker, count int64, err error) {
+	roleName = NormalizeTopicRoleName(roleName)
+	if roleName == "" {
+		return 0, 0, nil
+	}
+	return repositories.TopicVisibleEventRepository.GetRoleStatus(sqls.DB(), userId, roleName, after)
+}
+
+func createTopicVisibleEventTx(tx *gorm.DB, topicId int64) error {
+	return repositories.TopicVisibleEventRepository.Create(tx, &models.TopicVisibleEvent{
+		TopicId:    topicId,
+		CreateTime: dates.NowTimestamp(),
+	})
+}
+
 func (s *topicService) Updates(id int64, columns map[string]interface{}) error {
 	if err := repositories.TopicRepository.Updates(sqls.DB(), id, columns); err != nil {
 		return err
@@ -72,6 +88,9 @@ func (s *topicService) Updates(id int64, columns map[string]interface{}) error {
 }
 
 func (s *topicService) UpdateColumn(id int64, name string, value interface{}) error {
+	if status, ok := value.(int); name == "status" && ok && status == constants.StatusOk {
+		return s.Audit(id)
+	}
 	if err := repositories.TopicRepository.UpdateColumn(sqls.DB(), id, name, value); err != nil {
 		return err
 	}
@@ -80,6 +99,27 @@ func (s *topicService) UpdateColumn(id int64, name string, value interface{}) er
 	search.UpdateTopicIndex(s.Get(id))
 
 	return nil
+}
+
+func (s *topicService) Audit(id int64) error {
+	changed := false
+	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		result := ctx.Tx.Model(&models.Topic{}).
+			Where("id = ? AND status <> ?", id, constants.StatusOk).
+			UpdateColumn("status", constants.StatusOk)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		changed = true
+		return createTopicVisibleEventTx(ctx.Tx, id)
+	})
+	if err == nil && changed {
+		search.UpdateTopicIndex(s.Get(id))
+	}
+	return err
 }
 
 // Delete 删除
@@ -123,16 +163,24 @@ func (s *topicService) Delete(topicId, deleteUserId int64, r *http.Request) erro
 
 // Undelete 取消删除
 func (s *topicService) Undelete(id int64) error {
+	changed := false
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
-		if err := repositories.TopicRepository.UpdateColumn(ctx.Tx, id, "status", constants.StatusOk); err != nil {
-			return err
+		result := ctx.Tx.Model(&models.Topic{}).
+			Where("id = ? AND status = ?", id, constants.StatusDeleted).
+			UpdateColumn("status", constants.StatusOk)
+		if result.Error != nil {
+			return result.Error
 		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		changed = true
 		if err := TopicTagService.UndeleteByTopicId(ctx, id); err != nil {
 			return err
 		}
-		return nil
+		return createTopicVisibleEventTx(ctx.Tx, id)
 	})
-	if err == nil {
+	if err == nil && changed {
 		search.UpdateTopicIndex(s.Get(id))
 	}
 	return err
@@ -269,8 +317,31 @@ func (s *topicService) GetTopicTags(topicId int64) []models.Tag {
 	return cache.TagCache.GetList(tagIds)
 }
 
+func NormalizeTopicRoleName(roleName string) string {
+	switch strings.TrimSpace(roleName) {
+	case "agent", "用户":
+		return strings.TrimSpace(roleName)
+	default:
+		return ""
+	}
+}
+
+func applyTopicRoleNameFilter(cnd *sqls.Cnd, roleName string) {
+	if roleName == "" {
+		return
+	}
+	cnd.Where(`EXISTS (
+		SELECT 1
+		FROM t_user_role
+		JOIN t_role ON t_role.id = t_user_role.role_id
+		WHERE t_user_role.user_id = t_topic.user_id
+			AND t_role.name = ?
+			AND t_role.status = ?
+	)`, roleName, constants.StatusOk)
+}
+
 // GetTopics 帖子列表（最新、推荐、关注、节点）
-func (s *topicService) GetTopics(user *models.User, categoryId, cursor int64, qaStatus, sort string) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) GetTopics(user *models.User, categoryId, cursor int64, qaStatus, sort, roleName string) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	limit := constants.TopicListPageSize
 	if categoryId == constants.CategoryIdFollow {
 		if user != nil {
@@ -278,12 +349,12 @@ func (s *topicService) GetTopics(user *models.User, categoryId, cursor int64, qa
 		}
 		return
 	} else {
-		return s._GetCategoryTopics(categoryId, cursor, limit, qaStatus, sort)
+		return s._GetCategoryTopics(categoryId, cursor, limit, qaStatus, sort, roleName)
 	}
 }
 
 // _GetCategoryTopics 帖子列表（最新、推荐、节点）
-func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, qaStatus, sort string) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, qaStatus, sort, roleName string) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	cnd := sqls.NewCnd()
 	if categoryId > 0 {
 		categoryIds := CategoryService.GetCategoryIdsForList(categoryId)
@@ -300,6 +371,7 @@ func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, q
 		cnd.Eq("type", constants.TopicTypeQA)
 		cnd.Eq("qa_status", qaStatus)
 	}
+	applyTopicRoleNameFilter(cnd, roleName)
 	if sort == "latestPublish" {
 		if cursor > 0 {
 			cnd.Lt("id", cursor)
@@ -504,7 +576,7 @@ func (s *topicService) GetUserTopics(userId, cursor int64) (topics []models.Topi
 	return
 }
 
-func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus string) []models.Topic {
+func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus, roleName string) []models.Topic {
 	cnd := sqls.NewCnd().Eq("sticky", true).Eq("status", constants.StatusOk).Desc("sticky_time").Limit(limit)
 	if categoryId > 0 {
 		categoryIds := CategoryService.GetCategoryIdsForList(categoryId)
@@ -518,6 +590,7 @@ func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus str
 		cnd.Eq("type", constants.TopicTypeQA)
 		cnd.Eq("qa_status", qaStatus)
 	}
+	applyTopicRoleNameFilter(cnd, roleName)
 	return s.Find(cnd)
 }
 

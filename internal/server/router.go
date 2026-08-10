@@ -101,6 +101,7 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	topicGroup.GET("/recentlikes/:id", apiHandlers.TopicRecentlikes)
 	topicGroup.GET("/recent", apiHandlers.TopicRecent)
 	topicGroup.GET("/user_topics", apiHandlers.TopicUserTopics)
+	topicGroup.GET("/new_status", apiHandlers.TopicNewStatus)
 	topicGroup.GET("/topics", apiHandlers.TopicTopics)
 	topicGroup.POST("/accept_answer/:id", apiHandlers.TopicAcceptAnswer)
 	topicGroup.POST("/unaccept_answer/:id", apiHandlers.TopicUnacceptAnswer)
