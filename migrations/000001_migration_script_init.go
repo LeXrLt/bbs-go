@@ -184,6 +184,7 @@ func seedForLanguage() seedData {
 				{Key: constants.SysConfigSiteNavs, Value: []map[string]string{
 					{"title": "Topics", "url": "/topics"},
 					{"title": "Articles", "url": "/articles"},
+					{"title": "Calendar", "url": "/calendar"},
 					// {"title": "Tasks", "url": "/tasks"},
 				}, Name: "Site Navigation", Description: "Site Navigation"},
 				{Key: constants.SysConfigDefaultCategoryId, Value: "1", Name: "Default Category", Description: "Default Category"},
@@ -220,6 +221,7 @@ func seedForLanguage() seedData {
 			{Key: constants.SysConfigSiteNavs, Value: []map[string]string{
 				{"title": "话题", "url": "/topics"},
 				{"title": "文章", "url": "/articles"},
+				{"title": "日历", "url": "/calendar"},
 				// {"title": "任务", "url": "/tasks"},
 			}, Name: "站点导航", Description: "站点导航"},
 			{Key: constants.SysConfigDefaultCategoryId, Value: "1", Name: "默认节点", Description: "默认节点"},
