@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>投研日历</title>
+<style>
+  :root {
+    --bg: #fafafa;
+    --card-bg: #fff;
+    --text: #1a1a1a;
+    --text-secondary: #666;
+    --border: #e5e5e5;
+    --accent: #2563eb;
+    --accent-dim: #dbeafe;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f0f;
+      --card-bg: #1a1a1a;
+      --text: #e5e5e5;
+      --text-secondary: #999;
+      --border: #2a2a2a;
+      --accent: #60a5fa;
+      --accent-dim: #1e3a5f;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+  }
+  header h1 { font-size: 1.2rem; font-weight: 600; margin-right: auto; }
+  header label { font-size: .8rem; color: var(--text-secondary); }
+  header input, header select {
+    font-size: .8rem; padding: 4px 8px; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--card-bg); color: var(--text);
+  }
+  header input { width: 220px; }
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 16px; font-size: .8rem; color: var(--text-secondary);
+  }
+  .bar button {
+    padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--card-bg); color: var(--text); cursor: pointer; font-size: .8rem;
+  }
+  .bar button:hover { border-color: var(--accent); }
+  section { margin-bottom: 28px; }
+  section h2 {
+    font-size: 1rem; font-weight: 600; margin-bottom: 12px;
+    padding-bottom: 6px; border-bottom: 2px solid var(--accent-dim);
+  }
+  .event-list { display: flex; flex-direction: column; gap: 8px; }
+  .card {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 12px 14px;
+    box-shadow: var(--shadow); transition: border-color .15s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-row { display: flex; gap: 10px; align-items: flex-start; }
+  .badge {
+    flex-shrink: 0; font-size: .7rem; font-weight: 600; padding: 2px 7px;
+    border-radius: 3px; white-space: nowrap; margin-top: 2px;
+  }
+  .badge-macro  { background: #fef3c7; color: #92400e; }
+  .badge-earnings { background: #dbeafe; color: #1e40af; }
+  .badge-corp   { background: #ede9fe; color: #5b21b6; }
+  .badge-ipo    { background: #d1fae5; color: #065f46; }
+  .card-body { flex: 1; min-width: 0; }
+  .card-title { font-weight: 600; font-size: .9rem; margin-bottom: 2px; }
+  .card-meta { font-size: .75rem; color: var(--text-secondary); }
+  .card-date { font-size: .75rem; color: var(--text-secondary); white-space: nowrap; }
+  .load-more-btn {
+    display: block; width: 100%; padding: 10px; margin-top: 8px;
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    background: transparent; color: var(--text-secondary);
+    cursor: pointer; font-size: .8rem;
+  }
+  .load-more-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .load-more-btn:disabled { opacity: .4; cursor: default; }
+  .empty, .loading, .error {
+    text-align: center; padding: 32px 16px; color: var(--text-secondary); font-size: .85rem;
+  }
+  .error { color: #dc2626; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>📅 投研日历</h1>
+  <label>API</label>
+  <input id="apiUrl" type="text" placeholder="http://localhost:8088">
+  <label>类型</label>
+  <select id="kindFilter">
+    <option value="">全部</option>
+    <option value="economic">宏观</option>
+    <option value="earnings">财报</option>
+    <option value="corporate">公司事件</option>
+    <option value="ipo">IPO</option>
+  </select>
+  <button id="refreshBtn">刷新</button>
+</header>
+
+<div class="bar">
+  <span id="summary"></span>
+</div>
+
+<main>
+  <section>
+    <h2>🔜 即将发生</h2>
+    <div id="upcomingList" class="event-list"></div>
+    <button id="upcomingMore" class="load-more-btn" style="display:none">加载更多</button>
+  </section>
+
+  <section>
+    <h2>✅ 已经发生</h2>
+    <div id="pastList" class="event-list"></div>
+    <button id="pastMore" class="load-more-btn" style="display:none">加载更多</button>
+  </section>
+</main>
+
+<script>
+const DAY_MS = 86400000;
+const PAGE_DAYS = 30;
+
+// ── state ──
+let allEvents = [];
+let windowStart, windowEnd;    // Date objects
+let pastDone = false, upcomingDone = false;
+let loading = false;
+
+// ── DOM ──
+const $apiUrl = document.getElementById('apiUrl');
+const $kind = document.getElementById('kindFilter');
+const $refresh = document.getElementById('refreshBtn');
+const $summary = document.getElementById('summary');
+const $upcomingList = document.getElementById('upcomingList');
+const $pastList = document.getElementById('pastList');
+const $upcomingMore = document.getElementById('upcomingMore');
+const $pastMore = document.getElementById('pastMore');
+
+// ── helpers ──
+function fmtDate(d) { return d.toISOString().slice(0, 10); }
+
+function getEventDate(ev) {
+  // each kind has a different date field
+  const raw = ev.event_time || ev.report_date || ev.event_date;
+  return raw ? raw.slice(0, 10) : null;
+}
+
+function kindLabel(k) {
+  return { economic: '宏观', earnings: '财报', corporate: '公司事件', ipo: 'IPO' }[k] || k;
+}
+
+function badgeClass(k) {
+  return { economic: 'badge-macro', earnings: 'badge-earnings', corporate: 'badge-corp', ipo: 'badge-ipo' }[k] || '';
+}
+
+function apiBase() { return ($apiUrl.value || 'http://localhost:8088').replace(/\/+$/, ''); }
+
+// ── fetch ──
+async function fetchRange(from, to) {
+  const params = new URLSearchParams();
+  if (from) params.set('date_from', from);
+  if (to) params.set('date_to', to);
+  const k = $kind.value;
+  if (k) params.set('kind', k);
+  const url = apiBase() + '/api/feed?' + params.toString();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+  // flatten all kinds into one array, tag each with its kind
+  const kinds = ['economic', 'earnings', 'corporate', 'ipo'];
+  const flat = [];
+  for (const k of kinds) {
+    for (const ev of (data[k] || [])) {
+      flat.push({ ...ev, _kind: k, _date: getEventDate(ev) });
+    }
+  }
+  return flat;
+}
+
+// ── render ──
+function cardHTML(ev) {
+  const post = ev.post || {};
+  const title = post.title || (ev.indicator || ev.company || ev.title || '(无标题)');
+  const date = ev._date || '-';
+  const meta = [];
+  if (ev.country) meta.push(ev.country);
+  if (ev.ticker) meta.push(ev.ticker);
+  if (ev.importance) meta.push('★'.repeat(ev.importance));
+  const metaStr = meta.length ? meta.join(' · ') : '';
+
+  return `
+    <div class="card">
+      <div class="card-row">
+        <span class="badge ${badgeClass(ev._kind)}">${kindLabel(ev._kind)}</span>
+        <div class="card-body">
+          <div class="card-title">${esc(title)}</div>
+          ${metaStr ? `<div class="card-meta">${esc(metaStr)}</div>` : ''}
+        </div>
+        <div class="card-date">${date}</div>
+      </div>
+    </div>`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function render() {
+  const today = fmtDate(new Date());
+
+  const upcoming = allEvents
+    .filter(ev => ev._date && ev._date >= today)
+    .sort((a, b) => (a._date < b._date ? -1 : a._date > b._date ? 1 : 0));
+
+  const past = allEvents
+    .filter(ev => ev._date && ev._date < today)
+    .sort((a, b) => (a._date > b._date ? -1 : a._date < b._date ? 1 : 0));
+
+  $upcomingList.innerHTML = upcoming.length
+    ? upcoming.map(cardHTML).join('')
+    : '<div class="empty">暂无未来事件</div>';
+
+  $pastList.innerHTML = past.length
+    ? past.map(cardHTML).join('')
+    : '<div class="empty">暂无历史事件</div>';
+
+  $upcomingMore.style.display = upcomingDone ? 'none' : 'block';
+  $pastMore.style.display = pastDone ? 'none' : 'block';
+  $upcomingMore.disabled = loading || upcomingDone;
+  $pastMore.disabled = loading || pastDone;
+
+  $summary.textContent = `共 ${allEvents.length} 条 · 即将 ${upcoming.length} · 已发生 ${past.length}`;
+}
+
+// ── load ──
+async function loadMore(direction) {
+  if (loading) return;
+  loading = true;
+
+  try {
+    let from, to;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (direction === 'init') {
+      windowStart = new Date(today - DAY_MS * PAGE_DAYS);
+      windowEnd = new Date(today + DAY_MS * PAGE_DAYS);
+      from = fmtDate(windowStart);
+      to = fmtDate(windowEnd);
+    } else if (direction === 'past') {
+      const prev = new Date(windowStart);
+      windowStart = new Date(windowStart - DAY_MS * PAGE_DAYS);
+      from = fmtDate(windowStart);
+      to = fmtDate(new Date(prev - DAY_MS));
+    } else if (direction === 'future') {
+      const prev = new Date(windowEnd);
+      windowEnd = new Date(windowEnd.getTime() + DAY_MS * PAGE_DAYS);
+      from = fmtDate(new Date(prev.getTime() + DAY_MS));
+      to = fmtDate(windowEnd);
+    }
+
+    const fresh = await fetchRange(from, to);
+
+    // merge: dedup by (_kind, source_id)
+    const seen = new Set(allEvents.map(e => `${e._kind}:${e.source_id}`));
+    for (const ev of fresh) {
+      if (!seen.has(`${ev._kind}:${ev.source_id}`)) {
+        allEvents.push(ev);
+        seen.add(`${ev._kind}:${ev.source_id}`);
+      }
+    }
+
+    if (direction === 'past' && fresh.length === 0) pastDone = true;
+    if (direction === 'future' && fresh.length === 0) upcomingDone = true;
+
+    render();
+  } catch (err) {
+    const target = direction === 'past' ? $pastList : $upcomingList;
+    target.innerHTML = `<div class="error">加载失败: ${esc(err.message)}</div>`;
+  } finally {
+    loading = false;
+  }
+}
+
+// ── init ──
+async function init() {
+  allEvents = [];
+  pastDone = false;
+  upcomingDone = false;
+  $upcomingList.innerHTML = '<div class="loading"><span class="spinner"></span>加载中...</div>';
+  $pastList.innerHTML = '<div class="loading"><span class="spinner"></span>加载中...</div>';
+  await loadMore('init');
+}
+
+// ── events ──
+$refresh.addEventListener('click', init);
+$pastMore.addEventListener('click', () => loadMore('past'));
+$upcomingMore.addEventListener('click', () => loadMore('future'));
+
+// persist API URL
+const saved = localStorage.getItem('fc_api_url');
+if (saved) $apiUrl.value = saved;
+$apiUrl.addEventListener('change', () => localStorage.setItem('fc_api_url', $apiUrl.value));
+
+// start
+init();
+</script>
+</body>
+</html>
