@@ -4,12 +4,27 @@ import { localizedTitle, pageMeta, rootDataFromMatches } from "@/lib/seo"
 import { useDocumentTitle } from "@/lib/use-document-title"
 import { MainShell } from "@/components/layout/main-shell"
 import { cn } from "@/lib/utils"
+import dynamic from "@/lib/router/dynamic"
 import * as React from "react"
 import {
   CalendarIcon,
   ClockIcon,
   RefreshCwIcon,
 } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { useTheme } from "@/components/theme-provider"
+
+import "md-editor-rt/lib/style.css"
+
+const MdPreview = dynamic(
+  () => import("md-editor-rt").then((mod) => mod.MdPreview),
+  { ssr: false }
+) as React.ComponentType<{ modelValue: string; theme?: string }>
 
 // ── types ──
 interface CalendarEvent {
@@ -42,6 +57,18 @@ interface FeedResponse {
   earnings: any[]
   corporate: any[]
   ipo: any[]
+}
+
+interface EventDetailResponse {
+  kind: string
+  id: number
+  post?: {
+    title: string
+    content_md: string
+    category: string
+    tags: string[]
+  }
+  [key: string]: any
 }
 
 // ── constants ──
@@ -90,6 +117,7 @@ export function meta({
 
 export default function CalendarRoute() {
   useDocumentTitle("投研日历")
+  const { resolvedTheme } = useTheme()
 
   // ── state ──
   const [module, setModule] = React.useState<Module>("upcoming")
@@ -106,6 +134,12 @@ export default function CalendarRoute() {
   const [hasMore, setHasMore] = React.useState(true)
   const [page, setPage] = React.useState(0)
   const PAGE_SIZE = 50
+
+  // ── detail modal state ──
+  const [selectedEvent, setSelectedEvent] = React.useState<CalendarEvent | null>(null)
+  const [detail, setDetail] = React.useState<EventDetailResponse | null>(null)
+  const [detailLoading, setDetailLoading] = React.useState(false)
+  const [detailError, setDetailError] = React.useState<string | null>(null)
 
   // ── derived ──
   const today = React.useMemo(() => {
@@ -195,6 +229,39 @@ export default function CalendarRoute() {
   React.useEffect(() => {
     fetchEvents(true)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── detail fetch ──
+  const fetchDetail = React.useCallback(
+    async (ev: CalendarEvent) => {
+      setDetailLoading(true)
+      setDetailError(null)
+      setDetail(null)
+      try {
+        const base = apiUrl.replace(/\/+$/, "")
+        const url = `${base}/api/event/${ev._kind}/${ev.id}`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`API ${res.status}`)
+        const data: EventDetailResponse = await res.json()
+        setDetail(data)
+      } catch (err: any) {
+        setDetailError(err.message || "加载详情失败")
+      } finally {
+        setDetailLoading(false)
+      }
+    },
+    [apiUrl]
+  )
+
+  const handleEventClick = (ev: CalendarEvent) => {
+    setSelectedEvent(ev)
+    fetchDetail(ev)
+  }
+
+  const handleCloseDetail = () => {
+    setSelectedEvent(null)
+    setDetail(null)
+    setDetailError(null)
+  }
 
   // ── handlers ──
   const handleApiUrlChange = (url: string) => {
@@ -314,18 +381,79 @@ export default function CalendarRoute() {
           ) : (
             <div className="space-y-2">
               {filteredEvents.map((ev) => (
-                <EventCard key={`${ev._kind}:${ev.source_id}`} event={ev} />
+                <EventCard
+                  key={`${ev._kind}:${ev.source_id}`}
+                  event={ev}
+                  onClick={() => handleEventClick(ev)}
+                />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {/* ── event detail modal ── */}
+      <Dialog open={selectedEvent !== null} onOpenChange={(open) => !open && handleCloseDetail()}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {detail?.post?.title || selectedEvent?.post?.title || "事件详情"}
+            </DialogTitle>
+          </DialogHeader>
+
+          {detailLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              <RefreshCwIcon className="mx-auto mb-2 size-5 animate-spin" />
+              加载详情中...
+            </div>
+          ) : detailError ? (
+            <div className="rounded-lg bg-red-50 p-4 text-sm text-red-500 dark:bg-red-950/30">
+              {detailError}
+            </div>
+          ) : detail ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {detail.kind && (
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded px-1.5 py-0.5 font-semibold",
+                      KIND_BADGE_CLASSES[detail.kind] ||
+                        "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {KIND_LABELS[detail.kind] || detail.kind}
+                  </span>
+                )}
+                {detail.post?.category && (
+                  <span>分类: {detail.post.category}</span>
+                )}
+                {detail.post?.tags && detail.post.tags.length > 0 && (
+                  <span>标签: {detail.post.tags.join(", ")}</span>
+                )}
+              </div>
+
+              {(detail.post?.content_md || selectedEvent?.post?.content_md) && (
+                <MdPreview
+                  modelValue={detail.post?.content_md || selectedEvent?.post?.content_md || ""}
+                  theme={resolvedTheme === "dark" ? "dark" : "light"}
+                />
+              )}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </MainShell>
   )
 }
 
 // ── event card ──
-function EventCard({ event: ev }: { event: CalendarEvent }) {
+function EventCard({
+  event: ev,
+  onClick,
+}: {
+  event: CalendarEvent
+  onClick?: () => void
+}) {
   const post = ev.post
   const title =
     post?.title || ev.indicator || ev.company || ev.title || "(无标题)"
@@ -337,7 +465,13 @@ function EventCard({ event: ev }: { event: CalendarEvent }) {
   if (ev.importance) meta.push("★".repeat(ev.importance))
 
   return (
-    <div className="rounded-lg border border-border bg-background p-4 shadow-sm transition-colors hover:border-primary">
+    <div
+      onClick={onClick}
+      className={cn(
+        "rounded-lg border border-border bg-background p-4 shadow-sm transition-colors hover:border-primary",
+        onClick && "cursor-pointer"
+      )}
+    >
       <div className="flex items-start gap-3">
         <span
           className={cn(
