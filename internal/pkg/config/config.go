@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,15 +17,26 @@ import (
 )
 
 const (
-	BBSGO_ENV            = "BBSGO_ENV"
-	BBSGO_LOGIN_REQUIRED = "BBSGO_LOGIN_REQUIRED"
-	ENV_PREFIX           = "BBSGO"
+	BBSGO_ENV                      = "BBSGO_ENV"
+	BBSGO_LOGIN_REQUIRED           = "BBSGO_LOGIN_REQUIRED"
+	BBSGO_CALENDAR_BASE_URL        = "BBSGO_CALENDAR_BASE_URL"
+	BBSGO_CALENDAR_TIMEOUT_SECONDS = "BBSGO_CALENDAR_TIMEOUT_SECONDS"
+	BBSGO_CALENDAR_CACHE_SECONDS   = "BBSGO_CALENDAR_CACHE_SECONDS"
+	BBSGO_CALENDAR_FEED_TOKEN      = "BBSGO_CALENDAR_FEED_TOKEN"
+	ENV_PREFIX                     = "BBSGO"
 
 	EnvDev  = "dev"
 	EnvTest = "test"
 	EnvProd = "prod"
 
-	DefaultLoginRequired = true
+	DefaultLoginRequired          = true
+	DefaultCalendarBaseURL        = "https://calendar.bvcportal.com"
+	DefaultCalendarTimeoutSeconds = 8
+	DefaultCalendarCacheSeconds   = 30
+	// MaxCalendarTimeoutSeconds bounds the upstream request timeout.
+	MaxCalendarTimeoutSeconds = 60
+	// MaxCalendarCacheSeconds bounds the lifetime of an in-memory feed entry.
+	MaxCalendarCacheSeconds = 3600
 )
 
 type Language string
@@ -65,25 +77,39 @@ func init() {
 	v.SetEnvPrefix(ENV_PREFIX)
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.SetDefault("loginRequired", DefaultLoginRequired)
+	v.SetDefault("calendar.baseUrl", DefaultCalendarBaseURL)
+	v.SetDefault("calendar.timeoutSeconds", DefaultCalendarTimeoutSeconds)
+	v.SetDefault("calendar.cacheSeconds", DefaultCalendarCacheSeconds)
 	if err := v.BindEnv("loginRequired", BBSGO_LOGIN_REQUIRED); err != nil {
 		panic(fmt.Errorf("bind %s: %w", BBSGO_LOGIN_REQUIRED, err))
+	}
+	calendarEnvBindings := map[string]string{
+		"calendar.baseUrl":        BBSGO_CALENDAR_BASE_URL,
+		"calendar.timeoutSeconds": BBSGO_CALENDAR_TIMEOUT_SECONDS,
+		"calendar.cacheSeconds":   BBSGO_CALENDAR_CACHE_SECONDS,
+	}
+	for key, envName := range calendarEnvBindings {
+		if err := v.BindEnv(key, envName); err != nil {
+			panic(fmt.Errorf("bind %s: %w", envName, err))
+		}
 	}
 
 	configFile = getConfigFilePath(configFileName)
 }
 
 type Config struct {
-	Language       Language      `yaml:"language"`       // 语言
-	Port           int           `yaml:"port"`           // 端口
-	IPLocator      IPLocator     `yaml:"ipLocator"`      // IP定位配置
-	AllowedOrigins []string      `yaml:"allowedOrigins"` // 跨域白名单
-	Installed      bool          `yaml:"installed"`      // 是否已安装
-	LoginRequired  bool          `yaml:"loginRequired"`  // 是否强制登录后访问站点内容
-	IDCodec        IDCodecConfig `yaml:"idCodec"`        // ID 编解码配置
-	Logger         LoggerConfig  `yaml:"logger"`         // 日志配置
-	DB             DBConfig      `yaml:"db"`             // 数据库配置
-	Smtp           SmtpConfig    `yaml:"smtp"`           // smtp
-	Search         SearchConfig  `yaml:"search"`         // 搜索配置
+	Language       Language       `yaml:"language"`       // 语言
+	Port           int            `yaml:"port"`           // 端口
+	IPLocator      IPLocator      `yaml:"ipLocator"`      // IP定位配置
+	AllowedOrigins []string       `yaml:"allowedOrigins"` // 跨域白名单
+	Installed      bool           `yaml:"installed"`      // 是否已安装
+	LoginRequired  bool           `yaml:"loginRequired"`  // 是否强制登录后访问站点内容
+	IDCodec        IDCodecConfig  `yaml:"idCodec"`        // ID 编解码配置
+	Logger         LoggerConfig   `yaml:"logger"`         // 日志配置
+	DB             DBConfig       `yaml:"db"`             // 数据库配置
+	Smtp           SmtpConfig     `yaml:"smtp"`           // smtp
+	Search         SearchConfig   `yaml:"search"`         // 搜索配置
+	Calendar       CalendarConfig `yaml:"calendar"`       // 金融日历数据源
 }
 
 type IPLocator struct {
@@ -122,6 +148,13 @@ type SmtpConfig struct {
 
 type SearchConfig struct {
 	IndexPath string `yaml:"indexPath"`
+}
+
+type CalendarConfig struct {
+	BaseURL        string `yaml:"baseUrl"`
+	TimeoutSeconds int    `yaml:"timeoutSeconds"`
+	CacheSeconds   int    `yaml:"cacheSeconds"`
+	FeedToken      string `yaml:"-" json:"-" mapstructure:"-"`
 }
 
 func ReadConfig() (cfg *Config, exists bool, err error) {
@@ -165,8 +198,62 @@ func readConfig(reader *viper.Viper) (cfg *Config, exists bool, err error) {
 		return nil, exists, parseErr
 	}
 	cfg.LoginRequired = loginRequired
+	if err = readCalendarConfig(reader, &cfg.Calendar); err != nil {
+		return nil, exists, err
+	}
 
 	return cfg, exists, nil
+}
+
+func readCalendarConfig(reader *viper.Viper, calendar *CalendarConfig) error {
+	baseURL := strings.TrimSpace(reader.GetString("calendar.baseUrl"))
+	if baseURL == "" {
+		baseURL = DefaultCalendarBaseURL
+	}
+	feedToken := strings.TrimSpace(os.Getenv(BBSGO_CALENDAR_FEED_TOKEN))
+	parsedURL, err := url.Parse(baseURL)
+	validScheme := parsedURL != nil && (parsedURL.Scheme == "http" || parsedURL.Scheme == "https")
+	if feedToken != "" {
+		validScheme = parsedURL != nil && parsedURL.Scheme == "https"
+	}
+	if err != nil || parsedURL == nil || !validScheme || parsedURL.Host == "" || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		expectedScheme := "HTTP(S)"
+		if feedToken != "" {
+			expectedScheme = "HTTPS"
+		}
+		return fmt.Errorf("invalid %s: expected an absolute %s URL without credentials, query, or fragment", BBSGO_CALENDAR_BASE_URL, expectedScheme)
+	}
+
+	timeoutRaw := strings.TrimSpace(reader.GetString("calendar.timeoutSeconds"))
+	if timeoutRaw == "" {
+		timeoutRaw = strconv.Itoa(DefaultCalendarTimeoutSeconds)
+	}
+	timeoutSeconds, err := parsePositiveConfigInt(timeoutRaw, BBSGO_CALENDAR_TIMEOUT_SECONDS, MaxCalendarTimeoutSeconds)
+	if err != nil {
+		return err
+	}
+	cacheRaw := strings.TrimSpace(reader.GetString("calendar.cacheSeconds"))
+	if cacheRaw == "" {
+		cacheRaw = strconv.Itoa(DefaultCalendarCacheSeconds)
+	}
+	cacheSeconds, err := parsePositiveConfigInt(cacheRaw, BBSGO_CALENDAR_CACHE_SECONDS, MaxCalendarCacheSeconds)
+	if err != nil {
+		return err
+	}
+
+	calendar.BaseURL = strings.TrimRight(baseURL, "/")
+	calendar.TimeoutSeconds = timeoutSeconds
+	calendar.CacheSeconds = cacheSeconds
+	calendar.FeedToken = feedToken
+	return nil
+}
+
+func parsePositiveConfigInt(raw string, envName string, max int) (int, error) {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || value <= 0 || value > max {
+		return 0, fmt.Errorf("invalid %s value %q: expected an integer between 1 and %d", envName, raw, max)
+	}
+	return value, nil
 }
 
 func parseLoginRequired(raw string) (bool, error) {
