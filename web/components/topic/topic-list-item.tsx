@@ -259,7 +259,7 @@ export function TopicListItem({
                 href={topicHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="line-clamp-3 block text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:text-sm sm:leading-normal"
+                className="line-clamp-3 block text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:leading-normal"
               >
                 {topic.summary}
               </Link>
