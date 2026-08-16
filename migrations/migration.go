@@ -116,4 +116,5 @@ func init() {
 	register(15, "remove comment admin permissions", migrate_remove_comment_admin_permissions)
 	register(16, "sync PostgreSQL sequences after seeded IDs", migrate_sync_postgresql_sequences)
 	register(17, "backfill topic visible events", migrate_topic_visible_events)
+	register(18, "add calendar to site navigation", migrate_add_calendar_site_nav)
 }

@@ -174,6 +174,8 @@ func TestGinRouterRegistersCompatibleAPIPaths(t *testing.T) {
 		http.MethodPost + " /api/login/google_one_tap",
 		http.MethodPost + " /api/login/github_login_submit",
 		http.MethodPost + " /api/topic/accept_answer/:id",
+		http.MethodGet + " /api/calendar/events",
+		http.MethodGet + " /api/calendar/events/:kind/:id",
 		http.MethodGet + " /api/admin/search/reindex/status",
 		http.MethodPost + " /api/admin/search/reindex",
 		http.MethodGet + " /api/admin/seo/sitemap/status",

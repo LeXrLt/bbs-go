@@ -25,5 +25,10 @@ db:
   maxOpenConns: 200
   logLevel: warn # SQL log level: silent, error, warn, info
 
+calendar:
+  baseUrl: https://calendar.bvcportal.com
+  timeoutSeconds: 8
+  cacheSeconds: 30
+
 search:
   indexPath: /app/data/topic_index

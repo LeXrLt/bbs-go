@@ -27,6 +27,12 @@ DB:
   MaxOpenConns: 200
   LogLevel: warn # SQL日志级别：silent、error、warn、info
 
+# 金融日历数据源；Feed Token 仅通过 BBSGO_CALENDAR_FEED_TOKEN 环境变量配置
+Calendar:
+  BaseURL: https://calendar.bvcportal.com
+  TimeoutSeconds: 8
+  CacheSeconds: 30
+
 # search
 Search:
   IndexPath: # 索引路径

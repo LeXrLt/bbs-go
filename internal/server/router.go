@@ -240,6 +240,10 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	voteGroup.POST("/cast", apiHandlers.VoteCast)
 	voteGroup.GET("/:id", apiHandlers.VoteDetail)
 
+	calendarGroup := group.Group("/calendar")
+	calendarGroup.GET("/events", apiHandlers.CalendarEvents)
+	calendarGroup.GET("/events/:kind/:id", apiHandlers.CalendarEventDetail)
+
 }
 
 func registerAdminRoutes(group *gin.RouterGroup) {
