@@ -17,6 +17,12 @@ import (
 	"github.com/mlogclub/simple/common/strs"
 )
 
+const (
+	topicPreviewMinLength = 200
+	topicPreviewMaxLength = 800
+	topicSummaryLength    = 128
+)
+
 func BuildTopic(ctx *gin.Context, topic *models.Topic) *resp.TopicResponse {
 	rsp := _buildTopic(topic, true)
 	if rsp == nil {
@@ -78,6 +84,17 @@ func BuildAttachmentResponses(list []models.Attachment, currentUser *models.User
 func BuildSimpleTopic(topic *models.Topic) *resp.TopicResponse {
 	buildContent := constants.IsTweetTopicType(topic.Type) // 动态时渲染内容
 	return _buildTopic(topic, buildContent)
+}
+
+func buildSimpleTopicSummary(topic *models.Topic) string {
+	contentHtml := topic.Content
+	if topic.ContentType == constants.ContentTypeMarkdown {
+		contentHtml = markdown.ToHTML(topic.Content)
+	}
+	if topic.Type == constants.TopicTypeTopic {
+		return html2.GetParagraphSummary(contentHtml, topicPreviewMinLength, topicPreviewMaxLength)
+	}
+	return html2.GetSummary(contentHtml, topicSummaryLength)
 }
 
 func BuildSimpleTopics(ctx *gin.Context, topics []models.Topic) []resp.TopicResponse {
@@ -146,13 +163,9 @@ func _buildTopic(topic *models.Topic, buildContent bool) *resp.TopicResponse {
 		}
 	} else {
 		if !constants.IsTweetTopicType(topic.Type) {
-			contentHtml := topic.Content
-			if topic.ContentType == constants.ContentTypeMarkdown {
-				contentHtml = markdown.ToHTML(topic.Content)
-			}
-			rsp.Summary = html2.GetSummary(contentHtml, 128)
+			rsp.Summary = buildSimpleTopicSummary(topic)
 		} else {
-			rsp.Summary = text.GetSummary(topic.Content, 128)
+			rsp.Summary = text.GetSummary(topic.Content, topicSummaryLength)
 		}
 	}
 

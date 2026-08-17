@@ -16,6 +16,7 @@ import { TopicVoteCard } from "@/components/topic/topic-vote-card"
 import type { Topic } from "@/lib/api/types"
 import { prettyDate } from "@/lib/format"
 import type { TFunction } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
 
 type TopicListVariant = "default" | "compact"
 
@@ -259,7 +260,10 @@ export function TopicListItem({
                 href={topicHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="line-clamp-3 block text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:leading-normal"
+                className={cn(
+                  "block text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:text-sm sm:leading-normal",
+                  topic.type === 0 ? "whitespace-pre-line" : "line-clamp-3"
+                )}
               >
                 {topic.summary}
               </Link>
