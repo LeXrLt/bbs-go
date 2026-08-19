@@ -44,6 +44,10 @@ Then open:
 - Admin dashboard: <http://localhost:3000/dashboard>
 - Install wizard: <http://localhost:3000/install>
 
+Compose also starts an internal-only LibreOffice document converter for inline
+PDF and Office attachment previews. It exposes no host port and is limited to
+1 CPU and 1 GiB of memory.
+
 For production deployment options, environment variables, upgrades, and troubleshooting, see the Docker Hub page:
 
 <https://hub.docker.com/r/mlogclub/bbs-go>
@@ -95,6 +99,7 @@ This comparison is based on public product positioning and common use cases. The
 ### Content and Engagement
 
 - Publish and edit topics, feeds, and articles
+- Upload and preview PDF, Word, Excel, and PowerPoint attachments inline
 - Comments, replies, likes, and favorites
 - Tags and nodes for content organization and discovery
 - Voting and hidden content

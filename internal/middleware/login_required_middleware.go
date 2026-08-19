@@ -44,6 +44,11 @@ func LoginRequiredMiddleware(ctx *gin.Context) {
 		return
 	}
 
+	if isAttachmentBinaryAPIRequest(ctx.Request) {
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
 	ginx.WriteJSON(ctx, errs.NotLogin())
 	ctx.Abort()
 }
@@ -74,4 +79,12 @@ func isPublicLoginRequiredAPIRequest(request *http.Request) bool {
 
 func isProtectedSiteResourcePath(path string) bool {
 	return path == "/sitemap.xml" || path == "/res/uploads" || strings.HasPrefix(path, "/res/uploads/")
+}
+
+func isAttachmentBinaryAPIRequest(request *http.Request) bool {
+	if request.Method != http.MethodGet && request.Method != http.MethodHead {
+		return false
+	}
+	return strings.HasPrefix(request.URL.Path, "/api/attachment/preview/") ||
+		strings.HasPrefix(request.URL.Path, "/api/attachment/download/")
 }

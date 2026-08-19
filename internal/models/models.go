@@ -583,8 +583,13 @@ type Attachment struct {
 	UserId        int64  `gorm:"not null;index:idx_attachment_user_id" json:"userId" form:"userId"`                       // 上传者（发帖人）ID
 	FileName      string `gorm:"size:256" json:"fileName" form:"fileName"`                                                // 原始文件名
 	FileUrl       string `gorm:"size:1024" json:"fileUrl" form:"fileUrl"`                                                 // 访问地址（相对路径或完整 URL，上传返回）
+	StorageMethod string `gorm:"size:32" json:"-"`                                                                        // 上传时使用的存储方式
+	FileKey       string `gorm:"size:512" json:"-"`                                                                       // 原件对象 key
 	FileSize      int64  `gorm:"not null;default:0" json:"fileSize" form:"fileSize"`                                      // 文件大小（字节）
-	FileType      string `gorm:"size:64" json:"fileType" form:"fileType"`                                                 // MIME 或扩展名
+	FileType      string `gorm:"size:255" json:"fileType" form:"fileType"`                                                // MIME 或扩展名（OOXML MIME 可超过 64 字符）
+	PreviewKey    string `gorm:"size:512" json:"-"`                                                                       // PDF 预览对象 key；PDF 原件可与 FileKey 相同
+	PreviewSize   int64  `gorm:"not null;default:0" json:"-"`                                                             // PDF 预览大小（字节）
+	PreviewStatus string `gorm:"size:32;not null;default:unsupported;index:idx_attachment_preview_status" json:"-"`       // ready / unsupported
 	DownloadScore int    `gorm:"type:int;not null;default:0" json:"downloadScore" form:"downloadScore"`                   // 下载所需积分，0 表示免费
 	DownloadCount int    `gorm:"type:int;not null;default:0" json:"downloadCount" form:"downloadCount"`                   // 下载次数
 	Status        int    `gorm:"type:int;not null;index:idx_attachment_status" json:"status" form:"status"`               // 状态：正常/删除

@@ -95,6 +95,11 @@ const (
 	SourceTypeAttachmentIncome   = "attachment_income"   // 附件下载帖主收入（可选）
 )
 
+const (
+	AttachmentPreviewReady       = "ready"
+	AttachmentPreviewUnsupported = "unsupported"
+)
+
 // TaskEventType 任务事件类型（TaskConfig.EventType）
 const (
 	TaskEventTypeUserLogin      = "user.login"

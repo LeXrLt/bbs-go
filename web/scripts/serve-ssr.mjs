@@ -4,6 +4,12 @@ import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { createRequestListener } from "@react-router/node"
 
+import {
+  forwardUpstreamHeaders,
+  streamUpstreamBody,
+  upstreamRequestHeaders,
+} from "./http-proxy.mjs"
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const envPath = path.join(root, ".env")
 if (existsSync(envPath)) {
@@ -13,9 +19,7 @@ if (existsSync(envPath)) {
 const clientDir = path.join(root, "build/client")
 const serverBuildPath = path.join(root, "build/server/index.js")
 const port = Number(process.env.PORT || 3000)
-const serverURL =
-  process.env.BBSGO_SERVER_URL ||
-  process.env.SERVER_URL
+const serverURL = process.env.BBSGO_SERVER_URL || process.env.SERVER_URL
 if (!serverURL) {
   throw new Error("BBSGO_SERVER_URL is required. Set it in web/.env.")
 }
@@ -27,7 +31,7 @@ const frameworkRequestListener = createRequestListener({
 })
 
 function contentType(file) {
-  if (file.endsWith(".js")) return "text/javascript"
+  if (file.endsWith(".js") || file.endsWith(".mjs")) return "text/javascript"
   if (file.endsWith(".css")) return "text/css"
   if (file.endsWith(".svg")) return "image/svg+xml"
   if (file.endsWith(".png")) return "image/png"
@@ -73,32 +77,38 @@ createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host}`)
 
   if (shouldProxyToServer(url.pathname)) {
+    const abortController = new AbortController()
+    const abortUpstream = () => {
+      if (!res.writableEnded) abortController.abort()
+    }
+    req.once("aborted", abortUpstream)
+    res.once("close", abortUpstream)
+
     try {
       const upstream = new URL(`${url.pathname}${url.search}`, serverURL)
       const response = await fetch(upstream, {
         method: req.method,
-        headers: req.headers,
-        body:
-          req.method === "GET" || req.method === "HEAD" ? undefined : req,
+        headers: upstreamRequestHeaders(req.headers),
+        body: req.method === "GET" || req.method === "HEAD" ? undefined : req,
         duplex: "half",
+        signal: abortController.signal,
       })
 
       res.statusCode = response.status
-      response.headers.forEach((value, key) => {
-        if (key === "content-encoding" || key === "content-length") {
-          return
-        }
-        res.setHeader(key, value)
-      })
-      if (response.body) {
-        for await (const chunk of response.body) {
-          res.write(chunk)
-        }
-      }
-      res.end()
+      forwardUpstreamHeaders(url.pathname, response, res)
+      await streamUpstreamBody(response, res)
     } catch (error) {
+      if (abortController.signal.aborted || res.destroyed) return
+      if (res.headersSent) {
+        res.destroy()
+        return
+      }
       res.statusCode = 502
-      res.end(error instanceof Error ? error.message : String(error))
+      res.end("Bad Gateway")
+      console.error("upstream proxy failed", error)
+    } finally {
+      req.off("aborted", abortUpstream)
+      res.off("close", abortUpstream)
     }
     return
   }

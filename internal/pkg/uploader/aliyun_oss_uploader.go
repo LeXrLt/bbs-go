@@ -2,9 +2,12 @@ package uploader
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
@@ -36,6 +39,46 @@ func (u *AliyunOssUploader) PutObject(cfg dto.UploadConfig, key string, body io.
 		return "", err
 	}
 	return bbsurls.UrlJoin(cfg.AliyunOss.Host, key), nil
+}
+
+func (u *AliyunOssUploader) HeadObject(_ context.Context, cfg dto.UploadConfig, key string) (ObjectMeta, error) {
+	if err := u.initBucket(cfg); err != nil {
+		return ObjectMeta{}, err
+	}
+	header, err := u.bucket.GetObjectDetailedMeta(key)
+	if err != nil {
+		return ObjectMeta{}, err
+	}
+	size, err := strconv.ParseInt(header.Get("Content-Length"), 10, 64)
+	if err != nil {
+		return ObjectMeta{}, fmt.Errorf("invalid OSS object size: %w", err)
+	}
+	modified, _ := http.ParseTime(header.Get("Last-Modified"))
+	return ObjectMeta{Size: size, ContentType: header.Get("Content-Type"), LastModified: modified}, nil
+}
+
+func (u *AliyunOssUploader) GetObject(_ context.Context, cfg dto.UploadConfig, key string, opts GetOptions) (io.ReadCloser, error) {
+	if err := u.initBucket(cfg); err != nil {
+		return nil, err
+	}
+	if opts.Offset < 0 || opts.Length < 0 {
+		return nil, fmt.Errorf("invalid object range")
+	}
+	var options []oss.Option
+	if opts.Offset > 0 || opts.Length > 0 {
+		if opts.Length <= 0 {
+			return nil, fmt.Errorf("invalid object range")
+		}
+		options = append(options, oss.Range(opts.Offset, opts.Offset+opts.Length-1))
+	}
+	return u.bucket.GetObject(key, options...)
+}
+
+func (u *AliyunOssUploader) DeleteObject(_ context.Context, cfg dto.UploadConfig, key string) error {
+	if err := u.initBucket(cfg); err != nil {
+		return err
+	}
+	return u.bucket.DeleteObject(key)
 }
 
 func (u *AliyunOssUploader) CopyImage(cfg dto.UploadConfig, originUrl string) (string, error) {

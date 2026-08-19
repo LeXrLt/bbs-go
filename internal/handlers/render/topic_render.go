@@ -69,13 +69,18 @@ func BuildAttachmentResponses(list []models.Attachment, currentUser *models.User
 	}
 
 	for _, att := range list {
+		downloaded := downloadedMap[att.Id]
+		accessGranted := currentUser != nil && (att.UserId == currentUser.Id || att.DownloadScore <= 0 || downloaded)
 		atts = append(atts, resp.AttachmentResponse{
 			Id:            att.Id,
 			FileName:      att.FileName,
 			FileSize:      att.FileSize,
+			FileType:      att.FileType,
+			Previewable:   att.PreviewStatus == constants.AttachmentPreviewReady && strs.IsNotBlank(att.PreviewKey),
+			AccessGranted: accessGranted,
 			DownloadScore: att.DownloadScore,
 			DownloadCount: att.DownloadCount,
-			Downloaded:    downloadedMap[att.Id],
+			Downloaded:    downloaded,
 		})
 	}
 	return atts

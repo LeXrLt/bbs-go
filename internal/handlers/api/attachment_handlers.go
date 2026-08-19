@@ -1,41 +1,33 @@
 package api
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"bbs-go/internal/pkg/ginx"
 	"bbs-go/internal/pkg/params"
+	"bbs-go/internal/pkg/uploader"
 
 	"github.com/mlogclub/simple/common/strs"
 
+	"bbs-go/internal/models"
+	"bbs-go/internal/models/constants"
 	"bbs-go/internal/models/req"
 	"bbs-go/internal/models/resp"
 	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/locales"
 	"bbs-go/internal/services"
 )
-
-// attachmentErrorHTML 返回附件下载异常时的友好 HTML 页面
-func attachmentErrorHTML(title, message string) string {
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title>
-<style>
-  *{box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:420px;margin:0 auto;padding:48px 24px;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f8f9fa;color:#1a1a1a}
-  .card{background:#fff;border-radius:12px;padding:32px 28px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-  .card .title{font-size:1.125rem;font-weight:600;margin:0 0 12px;color:#1a1a1a}
-  .card .msg{font-size:0.9375rem;line-height:1.6;margin:0;color:#555}
-</style>
-</head>
-<body><div class="card"><p class="title">%s</p><p class="msg">%s</p></div></body>
-</html>`, title, title, message)
-}
 
 // PostUpload 上传附件（发帖前或发帖时）
 func AttachmentUpload(ctx *gin.Context) {
@@ -56,95 +48,228 @@ func AttachmentUpload(ctx *gin.Context) {
 		return
 	}
 
+	const multipartOverheadBytes = int64(1 << 20)
+	maxSizeMB := int64(cfg.MaxSizeMB)
+	if maxSizeMB <= 0 || maxSizeMB > (int64(^uint64(0)>>1)-multipartOverheadBytes)/(1024*1024) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("attachment.invalid_document")))
+		return
+	}
+	maxBytes := maxSizeMB * 1024 * 1024
+	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, maxBytes+multipartOverheadBytes)
+
 	file, header, err := ctx.Request.FormFile("file")
 	if err != nil {
-		ginx.WriteJSON(ctx, err)
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Getf("attachment.too_large", cfg.MaxSizeMB)))
+		} else {
+			ginx.WriteJSON(ctx, err)
+		}
 		return
 	}
 	defer file.Close()
 
-	maxBytes := int64(cfg.MaxSizeMB) * 1024 * 1024
 	if header.Size > maxBytes {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Getf("attachment.too_large", cfg.MaxSizeMB)))
 		return
 	}
 
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/octet-stream"
+	tempFile, err := os.CreateTemp("", "bbsgo-attachment-*")
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+	tempPath := tempFile.Name()
+	defer os.Remove(tempPath)
+
+	limited := &io.LimitedReader{R: file, N: maxBytes + 1}
+	size, copyErr := io.Copy(tempFile, limited)
+	closeErr := tempFile.Close()
+	if copyErr != nil || closeErr != nil {
+		if copyErr != nil {
+			ginx.WriteJSON(ctx, copyErr)
+		} else {
+			ginx.WriteJSON(ctx, closeErr)
+		}
+		return
+	}
+	if size > maxBytes {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Getf("attachment.too_large", cfg.MaxSizeMB)))
+		return
 	}
 
 	downloadScore, _ := params.GetInt(ctx, "downloadScore")
-
-	var (
-		body io.Reader = file
-		size int64     = header.Size
-	)
-	// 客户端未提供 Size 时回退为读入内存（如 chunked 上传）
-	if size <= 0 {
-		fileBytes, err := io.ReadAll(file)
-		if err != nil {
-			ginx.WriteJSON(ctx, err)
-			return
-		}
-		body = bytes.NewReader(fileBytes)
-		size = int64(len(fileBytes))
-	}
-
-	att, err := services.AttachmentService.Upload(user.Id, header.Filename, body, size, contentType, downloadScore)
+	att, err := services.AttachmentService.Upload(ctx.Request.Context(), user.Id, header.Filename, tempPath, size, downloadScore)
 	if err != nil {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
 
-	ginx.WriteJSON(ctx, resp.AttachmentResponse{
-		Id:            att.Id,
-		FileName:      att.FileName,
-		FileSize:      att.FileSize,
-		DownloadScore: att.DownloadScore,
-		Downloaded:    false,
-	})
+	ginx.WriteJSON(ctx, buildAttachmentResponse(att, user))
 
 }
 
-// GetDownloadBy 下载附件：鉴权后 302 到实际地址（id 为附件 UUID）。
-func AttachmentDownload(ctx *gin.Context) {
-	id := ctx.Param("id")
-
+func AttachmentAccess(ctx *gin.Context) {
 	user, err := common.CheckLogin(ctx)
 	if err != nil {
-		ctx.Status(http.StatusUnauthorized)
-		msg := locales.Get("errors.not_login")
-		ctx.Header("Content-Type", "text/html; charset=utf-8")
-		ctx.Writer.WriteString(attachmentErrorHTML(msg, msg))
+		ginx.WriteJSON(ctx, err)
 		return
 	}
-
-	if strs.IsBlank(id) {
-		ctx.Status(http.StatusNotFound)
-		msg := locales.Get("attachment.not_found")
-		ctx.Header("Content-Type", "text/html; charset=utf-8")
-		ctx.Writer.WriteString(attachmentErrorHTML(msg, msg))
-		return
-	}
-
-	redirectURL, err := services.AttachmentService.Download(id, user.Id)
+	att, err := services.AttachmentService.Access(ctx.Param("id"), user)
 	if err != nil {
-		ctx.Status(http.StatusInternalServerError)
-		msg := locales.Get(err.Error())
-		ctx.Header("Content-Type", "text/html; charset=utf-8")
-		ctx.Writer.WriteString(attachmentErrorHTML(msg, msg))
+		ginx.WriteJSON(ctx, err)
 		return
 	}
-	if strs.IsBlank(redirectURL) {
-		ctx.Status(http.StatusNotFound)
-		msg := locales.Get("attachment.file_missing")
-		ctx.Header("Content-Type", "text/html; charset=utf-8")
-		ctx.Writer.WriteString(attachmentErrorHTML(msg, msg))
+	ginx.WriteJSON(ctx, buildAttachmentResponse(att, user))
+}
+
+func buildAttachmentResponse(att *models.Attachment, currentUser *models.User) resp.AttachmentResponse {
+	downloaded := currentUser != nil && services.AttachmentService.HasDownloaded(currentUser.Id, att.Id)
+	accessGranted := currentUser != nil && services.AttachmentService.HasAccess(att, currentUser.Id)
+	return resp.AttachmentResponse{
+		Id:            att.Id,
+		FileName:      att.FileName,
+		FileSize:      att.FileSize,
+		FileType:      att.FileType,
+		Previewable:   att.PreviewStatus == constants.AttachmentPreviewReady && strs.IsNotBlank(att.PreviewKey),
+		AccessGranted: accessGranted,
+		DownloadScore: att.DownloadScore,
+		DownloadCount: att.DownloadCount,
+		Downloaded:    downloaded,
+	}
+}
+
+type attachmentByteRange struct {
+	start  int64
+	length int64
+	set    bool
+}
+
+func parseAttachmentRange(value string, size int64) (attachmentByteRange, error) {
+	if strings.TrimSpace(value) == "" {
+		return attachmentByteRange{start: 0, length: size}, nil
+	}
+	if size <= 0 || !strings.HasPrefix(value, "bytes=") || strings.Contains(value, ",") {
+		return attachmentByteRange{}, errors.New("invalid range")
+	}
+	parts := strings.Split(strings.TrimPrefix(value, "bytes="), "-")
+	if len(parts) != 2 {
+		return attachmentByteRange{}, errors.New("invalid range")
+	}
+	startText, endText := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	if startText == "" {
+		suffix, err := strconv.ParseInt(endText, 10, 64)
+		if err != nil || suffix <= 0 {
+			return attachmentByteRange{}, errors.New("invalid range")
+		}
+		if suffix > size {
+			suffix = size
+		}
+		return attachmentByteRange{start: size - suffix, length: suffix, set: true}, nil
+	}
+	start, err := strconv.ParseInt(startText, 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return attachmentByteRange{}, errors.New("invalid range")
+	}
+	end := size - 1
+	if endText != "" {
+		end, err = strconv.ParseInt(endText, 10, 64)
+		if err != nil || end < start {
+			return attachmentByteRange{}, errors.New("invalid range")
+		}
+		if end >= size {
+			end = size - 1
+		}
+	}
+	return attachmentByteRange{start: start, length: end - start + 1, set: true}, nil
+}
+
+func AttachmentPreview(ctx *gin.Context) {
+	serveAttachmentObject(ctx, true)
+}
+
+func AttachmentDownload(ctx *gin.Context) {
+	serveAttachmentObject(ctx, false)
+}
+
+func serveAttachmentObject(ctx *gin.Context, preview bool) {
+	user, err := common.CheckLogin(ctx)
+	if err != nil {
+		ctx.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	object, err := services.AttachmentService.AuthorizedObject(ctx.Param("id"), user, preview)
+	if err != nil {
+		status := http.StatusNotFound
+		if errors.Is(err, services.ErrAttachmentAccessForbidden) {
+			status = http.StatusForbidden
+		}
+		ctx.AbortWithStatus(status)
+		return
+	}
+	meta, err := services.UploadService.HeadObject(ctx.Request.Context(), object.Method, object.Key)
+	if err != nil || meta.Size <= 0 {
+		ctx.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	requestedRange, err := parseAttachmentRange(ctx.GetHeader("Range"), meta.Size)
+	if err != nil {
+		ctx.Header("Content-Range", fmt.Sprintf("bytes */%d", meta.Size))
+		ctx.AbortWithStatus(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
 
-	ctx.Redirect(302, redirectURL)
+	filename := filepath.Base(object.Attachment.FileName)
+	contentType := object.Attachment.FileType
+	disposition := "attachment"
+	if preview {
+		contentType = "application/pdf"
+		disposition = "inline"
+		filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ".pdf"
+	}
+	if strings.TrimSpace(contentType) == "" {
+		contentType = "application/octet-stream"
+	}
+	var reader io.ReadCloser
+	if ctx.Request.Method != http.MethodHead {
+		reader, err = services.UploadService.GetObject(ctx.Request.Context(), object.Method, object.Key, uploader.GetOptions{
+			Offset: requestedRange.start,
+			Length: requestedRange.length,
+		})
+		if err != nil {
+			slog.Error("open attachment object failed", slog.String("attachmentId", object.Attachment.Id), slog.Any("err", err))
+			ctx.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		defer reader.Close()
+	}
+	ctx.Header("Accept-Ranges", "bytes")
+	ctx.Header("Cache-Control", "private, no-store")
+	ctx.Header("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": filename}))
+	ctx.Header("Content-Length", strconv.FormatInt(requestedRange.length, 10))
+	ctx.Header("Content-Type", contentType)
+	ctx.Header("Cross-Origin-Resource-Policy", "same-origin")
+	ctx.Header("Pragma", "no-cache")
+	ctx.Header("X-Content-Type-Options", "nosniff")
+	status := http.StatusOK
+	if requestedRange.set {
+		status = http.StatusPartialContent
+		ctx.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", requestedRange.start, requestedRange.start+requestedRange.length-1, meta.Size))
+	}
+	ctx.Status(status)
+	ctx.Writer.WriteHeaderNow()
+	if ctx.Request.Method == http.MethodHead {
+		return
+	}
+	if _, err := io.CopyN(ctx.Writer, reader, requestedRange.length); err != nil {
+		slog.Warn("stream attachment object failed", slog.String("attachmentId", object.Attachment.Id), slog.Any("err", err))
+		return
+	}
+	if !preview {
+		if err := services.AttachmentService.IncrementDownloadCount(object.Attachment.Id); err != nil {
+			slog.Error("increment attachment download count failed", slog.String("attachmentId", object.Attachment.Id), slog.Any("err", err))
+		}
+	}
 }
 
 // PostUpdateDownloadScore 更新附件下载积分
@@ -165,11 +290,6 @@ func AttachmentUpdateDownloadScore(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, err)
 		return
 	}
-	ginx.WriteJSON(ctx, resp.AttachmentResponse{
-		Id:            att.Id,
-		FileName:      att.FileName,
-		FileSize:      att.FileSize,
-		DownloadScore: att.DownloadScore,
-	})
+	ginx.WriteJSON(ctx, buildAttachmentResponse(att, user))
 
 }

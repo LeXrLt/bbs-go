@@ -164,7 +164,11 @@ export function TopicDetailClientPage({
             <div className="mb-4 px-4">
               <TopicVoteCard vote={topic.vote} />
             </div>
-            <TopicAttachments attachments={topic.attachments} t={t} />
+            <TopicAttachments
+              topicId={topic.id}
+              attachments={topic.attachments}
+              t={t}
+            />
             <TopicTags topic={topic} likeUsers={likeUsers} />
             <div id="topic-actions">
               <TopicDetailActions

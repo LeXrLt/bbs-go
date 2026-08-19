@@ -213,6 +213,9 @@ type AttachmentResponse struct {
 	Id            string `json:"id"`            // ID
 	FileName      string `json:"fileName"`      // 原始文件名
 	FileSize      int64  `json:"fileSize"`      // 文件大小（字节）
+	FileType      string `json:"fileType"`      // 经服务端识别的规范 MIME
+	Previewable   bool   `json:"previewable"`   // 是否有可用的 PDF 预览
+	AccessGranted bool   `json:"accessGranted"` // 当前用户是否已有原件和预览访问权
 	DownloadScore int    `json:"downloadScore"` // 下载所需积分
 	DownloadCount int    `json:"downloadCount"` // 下载次数
 	Downloaded    bool   `json:"downloaded"`    // 当前用户是否已购买（可免费下载）

@@ -30,12 +30,59 @@ func (u *TencentCosUploader) PutObject(cfg dto.UploadConfig, key string, body io
 	if opts != nil {
 		headerOpts.ContentType = opts.ContentType
 		headerOpts.ContentDisposition = opts.ContentDisposition
+		headerOpts.ContentLength = opts.ContentLength
 	}
 	opt := &cos.ObjectPutOptions{ObjectPutHeaderOptions: headerOpts}
 	if _, err := u.client.Object.Put(context.Background(), key, body, opt); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s/%s", u.client.BaseURL.BucketURL, key), nil
+}
+
+func (u *TencentCosUploader) HeadObject(ctx context.Context, cfg dto.UploadConfig, key string) (ObjectMeta, error) {
+	if err := u.initClient(cfg); err != nil {
+		return ObjectMeta{}, err
+	}
+	resp, err := u.client.Object.Head(ctx, key, nil)
+	if err != nil {
+		return ObjectMeta{}, err
+	}
+	defer resp.Body.Close()
+	modified, _ := http.ParseTime(resp.Header.Get("Last-Modified"))
+	return ObjectMeta{
+		Size:         resp.ContentLength,
+		ContentType:  resp.Header.Get("Content-Type"),
+		LastModified: modified,
+	}, nil
+}
+
+func (u *TencentCosUploader) GetObject(ctx context.Context, cfg dto.UploadConfig, key string, opts GetOptions) (io.ReadCloser, error) {
+	if err := u.initClient(cfg); err != nil {
+		return nil, err
+	}
+	if opts.Offset < 0 || opts.Length < 0 {
+		return nil, fmt.Errorf("invalid object range")
+	}
+	getOpts := &cos.ObjectGetOptions{}
+	if opts.Offset > 0 || opts.Length > 0 {
+		if opts.Length <= 0 {
+			return nil, fmt.Errorf("invalid object range")
+		}
+		getOpts.Range = fmt.Sprintf("bytes=%d-%d", opts.Offset, opts.Offset+opts.Length-1)
+	}
+	resp, err := u.client.Object.Get(ctx, key, getOpts)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+func (u *TencentCosUploader) DeleteObject(ctx context.Context, cfg dto.UploadConfig, key string) error {
+	if err := u.initClient(cfg); err != nil {
+		return err
+	}
+	_, err := u.client.Object.Delete(ctx, key)
+	return err
 }
 
 func (u *TencentCosUploader) CopyImage(cfg dto.UploadConfig, originUrl string) (string, error) {

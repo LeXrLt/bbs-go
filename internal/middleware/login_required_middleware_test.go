@@ -34,6 +34,53 @@ func TestLoginRequiredMiddlewareBlocksAnonymousContentAPI(t *testing.T) {
 	}
 }
 
+func TestLoginRequiredMiddlewareUsesHTTPUnauthorizedForAttachmentStreams(t *testing.T) {
+	withLoginRequiredConfig(t, true, true)
+	for _, request := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/api/attachment/preview/file-id"},
+		{method: http.MethodHead, path: "/api/attachment/preview/file-id"},
+		{method: http.MethodGet, path: "/api/attachment/download/file-id"},
+		{method: http.MethodHead, path: "/api/attachment/download/file-id"},
+	} {
+		ctx, recorder := newMiddlewareTestContext(request.method, request.path)
+		LoginRequiredMiddleware(ctx)
+		if !ctx.IsAborted() {
+			t.Fatalf("anonymous attachment stream %s %s must be aborted", request.method, request.path)
+		}
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("attachment stream %s %s status=%d want %d", request.method, request.path, recorder.Code, http.StatusUnauthorized)
+		}
+		if recorder.Body.Len() != 0 {
+			t.Fatalf("attachment stream %s %s body=%q want empty", request.method, request.path, recorder.Body.String())
+		}
+	}
+}
+
+func TestAttachmentStreamStatusDoesNotAffectOtherAPIRequests(t *testing.T) {
+	withLoginRequiredConfig(t, true, true)
+	for _, request := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodPost, path: "/api/attachment/preview/file-id"},
+		{method: http.MethodGet, path: "/api/attachment/preview"},
+		{method: http.MethodGet, path: "/api/attachment/preview-file-id"},
+		{method: http.MethodGet, path: "/api/topic/topics"},
+	} {
+		ctx, recorder := newMiddlewareTestContext(request.method, request.path)
+		LoginRequiredMiddleware(ctx)
+		if !ctx.IsAborted() {
+			t.Fatalf("anonymous API %s %s must be aborted", request.method, request.path)
+		}
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("ordinary API %s %s status=%d want %d", request.method, request.path, recorder.Code, http.StatusOK)
+		}
+	}
+}
+
 func TestLoginRequiredMiddlewareAllowsPublicAuthAPIs(t *testing.T) {
 	withLoginRequiredConfig(t, true, true)
 	for _, request := range []struct {

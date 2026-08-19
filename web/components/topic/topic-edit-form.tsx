@@ -2,19 +2,15 @@
 
 import * as React from "react"
 import { useRouter } from "@/lib/router/navigation"
-import { Trash2 } from "lucide-react"
 
 import { TagInput } from "@/components/common/tag-input"
 import { ContentEditor } from "@/components/editor/content-editor"
 import { CategoryQuickSelector } from "@/components/topic/category-selector"
+import { TopicAttachmentField } from "@/components/topic/topic-attachment-field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { apiFetch } from "@/lib/api/client"
-import type {
-  SiteConfig,
-  TopicAttachment,
-  Category,
-} from "@/lib/api/types"
+import type { SiteConfig, TopicAttachment, Category } from "@/lib/api/types"
 import type { TopicEditData } from "@/lib/api/topics"
 import { useI18n } from "@/lib/i18n/provider"
 import {
@@ -51,157 +47,6 @@ function normalizeEditData(topic: TopicEditData): TopicEditFormState {
     hideContent: topic.hideContent || "",
     tags: Array.isArray(topic.tags) ? topic.tags : [],
   }
-}
-
-function TopicAttachmentField({
-  value,
-  uploading,
-  config,
-  onUploadingChange,
-  onChange,
-}: {
-  value: TopicAttachment[]
-  uploading: boolean
-  config?: SiteConfig["attachmentConfig"]
-  onUploadingChange: (value: boolean) => void
-  onChange: (value: TopicAttachment[]) => void
-}) {
-  const { t } = useI18n()
-  const { catchError } = useToastActions()
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const maxCount = config?.maxCount ?? 5
-  const maxSizeMB = config?.maxSizeMB ?? 10
-  const accept = Array.isArray(config?.allowedTypes)
-    ? config.allowedTypes.join(",")
-    : ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z,.tar,.gz"
-
-  async function upload(file: File) {
-    onUploadingChange(true)
-    try {
-      const body = new FormData()
-      body.append("file", file, file.name)
-      body.append("downloadScore", "0")
-      const attachment = await apiFetch<TopicAttachment>(
-        "/api/attachment/upload",
-        {
-          method: "POST",
-          body,
-        }
-      )
-      onChange([...value, attachment])
-    } catch (error) {
-      catchError(error)
-    } finally {
-      onUploadingChange(false)
-    }
-  }
-
-  async function updateScore(
-    attachment: TopicAttachment,
-    downloadScore: number
-  ) {
-    onChange(
-      value.map((item) =>
-        item.id === attachment.id ? { ...item, downloadScore } : item
-      )
-    )
-    try {
-      await apiFetch<null>("/api/attachment/update_download_score", {
-        method: "POST",
-        body: { id: attachment.id, downloadScore },
-      })
-    } catch (error) {
-      catchError(error)
-    }
-  }
-
-  return (
-    <div className="rounded-md border border-dashed bg-muted/20 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">
-          {t("pages.topic.create.attachment.label")}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          {t("pages.topic.create.attachment.limitHint", {
-            maxCount,
-            maxSizeMB,
-          })}
-        </span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={uploading || value.length >= maxCount}
-          onClick={() => inputRef.current?.click()}
-        >
-          {t("pages.topic.create.attachment.add")}
-        </Button>
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          accept={accept}
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0]
-            if (file) void upload(file)
-            event.currentTarget.value = ""
-          }}
-        />
-      </div>
-      {uploading ? (
-        <div className="mt-2 text-xs text-muted-foreground">
-          {t("pages.topic.create.attachmentUploading")}
-        </div>
-      ) : null}
-      {value.length ? (
-        <ul className="mt-2 space-y-2 text-sm">
-          {value.map((attachment, index) => (
-            <li
-              key={attachment.id || index}
-              className="flex flex-col gap-2 rounded border bg-background p-2 sm:flex-row sm:items-center"
-            >
-              <div className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {attachment.fileName}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {attachment.fileSize || 0} B
-                </span>
-              </div>
-              <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                {t("pages.topic.create.attachment.scorePlaceholder")}
-                <Input
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="h-8 w-20"
-                  value={attachment.downloadScore ?? 0}
-                  onChange={(event) =>
-                    void updateScore(
-                      attachment,
-                      Math.max(0, Number(event.currentTarget.value) || 0)
-                    )
-                  }
-                />
-              </label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground hover:text-destructive"
-                aria-label={t("pages.topic.create.attachment.remove")}
-                onClick={() =>
-                  onChange(value.filter((_, itemIndex) => itemIndex !== index))
-                }
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  )
 }
 
 export function TopicEditForm({

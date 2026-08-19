@@ -1,13 +1,14 @@
 package uploader
 
 import (
+	"context"
 	"io"
-
-	"bbs-go/internal/models/dto"
-	"bbs-go/internal/pkg/config"
 	"mime"
 	"strings"
 	"time"
+
+	"bbs-go/internal/models/dto"
+	"bbs-go/internal/pkg/config"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/mlogclub/simple/common/dates"
@@ -16,8 +17,9 @@ import (
 )
 
 var (
-	imagePrefix      = "images"
-	attachmentPrefix = "attachments"
+	imagePrefix             = "images"
+	attachmentPrefix        = "attachments"
+	attachmentPreviewPrefix = "attachment-previews"
 )
 
 // PutOptions 对象上传时的可选参数；nil 表示不设置。
@@ -25,6 +27,20 @@ type PutOptions struct {
 	ContentType        string // 如 image/jpeg、application/pdf
 	ContentDisposition string // 如 attachment; filename="xxx.pdf"
 	ContentLength      int64  // 流式上传时 body 长度（S3 等需此值），<=0 表示未知
+	// Private 标记只能由应用鉴权接口读取的对象。远端上传器不发送对象 ACL；
+	// 部署方必须通过私有桶或按前缀的桶策略保证此类对象不可公开读取。
+	Private bool
+}
+
+type ObjectMeta struct {
+	Size         int64
+	ContentType  string
+	LastModified time.Time
+}
+
+type GetOptions struct {
+	Offset int64
+	Length int64
 }
 
 // Uploader 存储上传接口：仅提供按 key 写流与 CopyImage，不包含业务 key 策略。
@@ -33,6 +49,9 @@ type Uploader interface {
 	PutObject(cfg dto.UploadConfig, key string, body io.Reader, opts *PutOptions) (string, error)
 	// CopyImage 从 originUrl 拉取图片并上传（内部使用 GenerateImageKey 生成 key）。
 	CopyImage(cfg dto.UploadConfig, originUrl string) (string, error)
+	HeadObject(ctx context.Context, cfg dto.UploadConfig, key string) (ObjectMeta, error)
+	GetObject(ctx context.Context, cfg dto.UploadConfig, key string, opts GetOptions) (io.ReadCloser, error)
+	DeleteObject(ctx context.Context, cfg dto.UploadConfig, key string) error
 }
 
 // ---- Key 生成（与存储实现解耦，由调用方或 CopyImage 组合使用） ----
@@ -58,6 +77,10 @@ func GenerateImageKeyByContentType(contentType string) string {
 // GenerateAttachmentKey 生成附件 key（UUID + 扩展名）。
 func GenerateAttachmentKey(uuid, ext string) string {
 	return generateKeyWithPrefix(attachmentPrefix, uuid, ext)
+}
+
+func GenerateAttachmentPreviewKey(uuid string) string {
+	return generateKeyWithPrefix(attachmentPreviewPrefix, uuid, ".pdf")
 }
 
 // NormalizeImageContentType 空时返回 image/jpeg，便于统一默认。

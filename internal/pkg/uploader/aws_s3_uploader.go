@@ -50,6 +50,56 @@ func (u *AwsS3Uploader) PutObject(cfg dto.UploadConfig, key string, body io.Read
 	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.AwsS3.Bucket, cfg.AwsS3.Region, key), nil
 }
 
+func (u *AwsS3Uploader) HeadObject(ctx context.Context, cfg dto.UploadConfig, key string) (ObjectMeta, error) {
+	if err := u.initClient(cfg); err != nil {
+		return ObjectMeta{}, err
+	}
+	out, err := u.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(cfg.AwsS3.Bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return ObjectMeta{}, err
+	}
+	meta := ObjectMeta{Size: aws.ToInt64(out.ContentLength), ContentType: aws.ToString(out.ContentType)}
+	if out.LastModified != nil {
+		meta.LastModified = *out.LastModified
+	}
+	return meta, nil
+}
+
+func (u *AwsS3Uploader) GetObject(ctx context.Context, cfg dto.UploadConfig, key string, opts GetOptions) (io.ReadCloser, error) {
+	if err := u.initClient(cfg); err != nil {
+		return nil, err
+	}
+	if opts.Offset < 0 || opts.Length < 0 {
+		return nil, fmt.Errorf("invalid object range")
+	}
+	input := &s3.GetObjectInput{Bucket: aws.String(cfg.AwsS3.Bucket), Key: aws.String(key)}
+	if opts.Offset > 0 || opts.Length > 0 {
+		if opts.Length <= 0 {
+			return nil, fmt.Errorf("invalid object range")
+		}
+		input.Range = aws.String(fmt.Sprintf("bytes=%d-%d", opts.Offset, opts.Offset+opts.Length-1))
+	}
+	out, err := u.client.GetObject(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	return out.Body, nil
+}
+
+func (u *AwsS3Uploader) DeleteObject(ctx context.Context, cfg dto.UploadConfig, key string) error {
+	if err := u.initClient(cfg); err != nil {
+		return err
+	}
+	_, err := u.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(cfg.AwsS3.Bucket),
+		Key:    aws.String(key),
+	})
+	return err
+}
+
 func (u *AwsS3Uploader) CopyImage(cfg dto.UploadConfig, originUrl string) (string, error) {
 	data, ct, err := download(originUrl)
 	if err != nil {

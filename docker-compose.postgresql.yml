@@ -18,6 +18,41 @@ services:
       timeout: 5s
       retries: 10
 
+  document-converter:
+    image: gotenberg/gotenberg:8.36.0-libreoffice@sha256:88f9cc4a8b9468443220a0b945174c794880c1b6d3d583efba6e2319e509ac92
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - "--api-timeout=${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-60}s"
+      - --api-body-limit=16MB
+      - --api-disable-download-from=true
+      - --libreoffice-auto-start=true
+      - --libreoffice-max-queue-size=4
+      - --libreoffice-deny-private-ips=true
+      - --libreoffice-deny-public-ips=true
+      - --pdfengines-disable-routes=true
+      - --prometheus-disable-collect=true
+      - --webhook-disable=true
+    networks:
+      - document-converter
+    user: "1001:1001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cpus: 1.0
+    mem_limit: 1g
+    pids_limit: 256
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   bbs-go:
     build:
       context: .
@@ -26,6 +61,8 @@ services:
     restart: unless-stopped
     depends_on:
       postgresql:
+        condition: service_healthy
+      document-converter:
         condition: service_healthy
     volumes:
       # bbs-go.yaml is stored in /app/data. Keep runtime files on the host
@@ -41,6 +78,9 @@ services:
       PORT: 3000
       BBSGO_SERVER_URL: http://127.0.0.1:8082
       BBSGO_LOGIN_REQUIRED: "${BBSGO_LOGIN_REQUIRED:-true}"
+      BBSGO_DOCUMENT_CONVERTER_URL: http://document-converter:3000
+      BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS: "${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-60}"
+      BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB: "${BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB:-50}"
       BBSGO_CALENDAR_BASE_URL: "${BBSGO_CALENDAR_BASE_URL:-https://calendar.bvcportal.com}"
       BBSGO_CALENDAR_TIMEOUT_SECONDS: "${BBSGO_CALENDAR_TIMEOUT_SECONDS:-8}"
       BBSGO_CALENDAR_CACHE_SECONDS: "${BBSGO_CALENDAR_CACHE_SECONDS:-30}"
@@ -52,6 +92,13 @@ services:
       BBSGO_DOCKER_BUILTIN_POSTGRESQL_USERNAME: ${BBSGO_DOCKER_POSTGRESQL_USER:-bbsgo}
       BBSGO_DOCKER_BUILTIN_POSTGRESQL_PASSWORD: ${BBSGO_DOCKER_POSTGRESQL_PASSWORD:-bbsgo_password}
       TZ: Asia/Shanghai
+    networks:
+      - default
+      - document-converter
 
 volumes:
   postgresql-data:
+
+networks:
+  document-converter:
+    internal: true

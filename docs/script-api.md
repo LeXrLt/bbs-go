@@ -21,6 +21,10 @@
 | 获取/提交帖子编辑数据 | `GET` / `POST` | `/api/topic/edit/{topicId}` | 是 |
 | 删除帖子 | `POST` | `/api/topic/delete/{topicId}` | 是 |
 | 上传正文或评论图片 | `POST` | `/api/upload` | 是 |
+| 上传帖子附件 | `POST` | `/api/attachment/upload` | 是 |
+| 获取附件访问权 | `POST` | `/api/attachment/access/{attachmentId}` | 是 |
+| 在线预览附件 | `GET` / `HEAD` | `/api/attachment/preview/{attachmentId}` | 是 |
+| 下载附件原件 | `GET` / `HEAD` | `/api/attachment/download/{attachmentId}` | 是 |
 | 获取一级评论 | `GET` | `/api/comment/comments` | 按站点配置 |
 | 获取二级回复 | `GET` | `/api/comment/replies` | 按站点配置 |
 | 创建评论或回复 | `POST` | `/api/comment/create` | 是 |
@@ -779,6 +783,21 @@ curl -sS -X POST "$BBS_BASE_URL/api/upload" \
 ### 7.2 上传帖子附件
 
 仅普通帖子支持附件，并且公开配置中的 `attachmentConfig.enabled` 必须为 `true`。
+上传接口接受的扩展名、单文件大小和每帖数量以 `attachmentConfig` 为准；默认配置
+允许文档、纯文本和常见压缩包，其中以下格式支持站内在线预览：
+
+| 类型 | 扩展名 | 预览处理 |
+| --- | --- | --- |
+| PDF | `.pdf` | 校验后直接作为 PDF 预览 |
+| Word | `.doc`、`.docx` | 上传时同步转换为 PDF |
+| Excel | `.xls`、`.xlsx` | 上传时同步转换为 PDF |
+| PowerPoint | `.ppt`、`.pptx` | 上传时同步转换为 PDF |
+
+扩展名匹配不代表文件会被信任。服务端会核对 PDF 签名、旧版 Office OLE 头，
+以及 OOXML ZIP 结构和实际文档类型；空文件、伪造扩展名、异常压缩包和加密的
+Office 文件会被拒绝。宏专用扩展名以及检测到 VBA 项目的 OOXML 文件同样会被拒绝；
+`.docm`、`.xlsm`、`.pptm`、WPS、OpenDocument 等不属于本期预览格式。站点配置允许
+的其他附件仍可下载，但响应中的 `previewable` 为 `false`。
 
 ```http
 POST /api/attachment/upload
@@ -793,7 +812,128 @@ curl -sS -X POST "$BBS_BASE_URL/api/attachment/upload" \
   -F 'downloadScore=0'
 ```
 
-成功响应的 `data.id` 是附件 UUID。将一个或多个 UUID 放入创建帖子的 `attachmentIds` 数组后，服务端才会把附件绑定到该帖子。附件必须属于当前用户、扩展名符合站点配置、未绑定其他帖子，且总数不能超过配置限制。
+`downloadScore` 小于 `0` 时按 `0` 处理；`0` 表示免费访问，正整数表示其他用户
+需要先支付的积分。成功响应中的 `data` 是附件元数据，不包含对象存储直链：
+
+```json
+{
+  "id": "附件UUID",
+  "fileName": "document.pdf",
+  "fileSize": 12345,
+  "fileType": "application/pdf",
+  "previewable": true,
+  "accessGranted": true,
+  "downloadScore": 0,
+  "downloadCount": 0,
+  "downloaded": false
+}
+```
+
+`fileType` 是服务端识别后的规范 MIME，不能用来替代上传前的扩展名检查。
+`previewable=true` 表示预览 PDF 已准备好；`accessGranted=true` 表示当前用户已经
+可以读取预览和原件。`downloaded` 保留“已经登记过附件访问记录”的语义，调用方
+判断是否需要解锁时应使用 `accessGranted`。
+
+Office 转 PDF 在上传请求内同步完成。转换服务不可用、超时、输出超过部署限制或
+输出不是有效 PDF 时，整个上传失败且不会返回附件 ID；不要发布一个未成功上传的
+占位附件。Excel 预览是静态页面，不提供公式计算或筛选交互；PowerPoint 预览不播放
+动画，字体替换和复杂排版也可能与原始 Office 客户端存在差异。
+
+将一个或多个 UUID 放入创建帖子的 `attachmentIds` 数组后，服务端才会把附件绑定到
+该帖子。附件必须属于当前用户、未绑定其他帖子，且总数不能超过配置限制。
+
+### 7.3 获取附件访问权
+
+附件详情不会返回可绕过鉴权的永久 URL。读取原件或预览前先检查帖子详情中附件的
+`accessGranted`；为 `false` 时，显式调用：
+
+```http
+POST /api/attachment/access/{attachmentId}
+X-User-Token: <token>
+```
+
+```bash
+curl -sS -X POST \
+  -H "X-User-Token: $BBS_TOKEN" \
+  "$BBS_BASE_URL/api/attachment/access/$ATTACHMENT_ID"
+```
+
+该接口是授权和积分变更的唯一入口。附件免费、调用者是帖主或已经取得访问权时，
+不会扣除积分；其他用户访问收费附件时，会在同一事务中校验余额、扣除一次积分并
+登记访问记录。对同一用户和附件重复调用具有幂等语义，不会重复扣分。成功响应的
+`data` 是更新后的附件元数据，此时 `accessGranted=true`。
+
+脚本不得通过预览或下载请求尝试触发购买，也不得在积分不足或无权查看帖子时循环
+重试。网络结果不确定时可以重新获取帖子详情；只有仍为 `accessGranted=false` 时才
+需要再次调用访问接口。
+
+### 7.4 在线预览与下载原件
+
+取得访问权后，PDF 和 Office 附件统一从以下接口在线浏览：
+
+```http
+GET /api/attachment/preview/{attachmentId}
+HEAD /api/attachment/preview/{attachmentId}
+```
+
+`GET` 返回 `Content-Type: application/pdf` 和内联展示的 `Content-Disposition`。
+Office 附件返回的是转换后的 PDF，不会改写原件。接口支持单段 HTTP Range；有效范围
+返回 `206 Partial Content`，不可满足的范围返回 `416 Range Not Satisfiable`。
+`HEAD` 返回与 `GET` 相同的关键文件头但没有响应体，适合脚本先探测大小和范围能力。
+
+```bash
+curl -fsS \
+  -H "X-User-Token: $BBS_TOKEN" \
+  -H 'Range: bytes=0-65535' \
+  "$BBS_BASE_URL/api/attachment/preview/$ATTACHMENT_ID" \
+  -o preview.part
+```
+
+原件下载接口为：
+
+```http
+GET /api/attachment/download/{attachmentId}
+HEAD /api/attachment/download/{attachmentId}
+```
+
+```bash
+curl -fsS -OJ \
+  -H "X-User-Token: $BBS_TOKEN" \
+  "$BBS_BASE_URL/api/attachment/download/$ATTACHMENT_ID"
+```
+
+下载响应使用服务端保存的原始文件名并同样支持 Range。预览和下载请求都不会扣积分，
+也不会隐式创建购买记录；预览永不增加 `downloadCount`。原件的成功 `GET` 会在响应体
+完整写出后增加一次 `downloadCount`，成功的 `206 Range` 也算一次实际传输；`HEAD` 和
+`416` 不计数。未登录、无帖子查看权、尚未取得付费附件访问权、附件已删除或尚未绑定
+有效帖子时，请求会失败。不要直接访问 `/res/uploads/attachments/...`、
+`/res/uploads/attachment-previews/...` 或对象存储地址，这些路径不属于公开附件契约。
+
+这两个流接口直接使用 HTTP 状态表达失败，不返回通常的业务 JSON：未登录为 `401`，
+无帖子查看权或尚未解锁为 `403`，附件不存在、已删除、未绑定或预览不可用为 `404`。
+
+### 7.5 转换服务部署限制
+
+官方 Compose 会启动仅内部网络可达的 LibreOffice 转换容器，不映射宿主机端口。
+自定义部署需要为应用配置以下环境变量：
+
+| 环境变量 | Compose 默认值 | 约束与用途 |
+| --- | --- | --- |
+| `BBSGO_DOCUMENT_CONVERTER_URL` | `http://document-converter:3000` | Gotenberg 根 URL；只允许路径为空或 `/` 且不含凭据、查询和片段的绝对 HTTP(S) URL |
+| `BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS` | `60` | 单次转换超时，范围 `1..300` 秒 |
+| `BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB` | `50` | 转换后 PDF 最大体积，范围 `1..200` MB |
+
+仓库 Compose 还把 Gotenberg 的请求体限制为 `16MB`。若管理员提高
+`attachmentConfig.maxSizeMB`，必须同步评估并调整该限制、转换输出上限、临时盘和
+容器内存；不要只放宽其中一项。转换 URL 必须指向受信任的内网服务，因为 Office
+原件会发送给该服务；该 URL 只供后端使用，不能暴露给浏览器或脚本。
+
+使用 OSS、COS 或 S3 时，上传器不会发送对象 ACL；这样可兼容已启用 Bucket Owner
+Enforced、禁用 ACL 的现代 S3 配置。管理员必须通过私有桶或 bucket policy 保证
+`attachments/` 与 `attachment-previews/` 前缀不可公开读取，并确保 CDN 不会绕过
+BBS 鉴权。S3 部署应启用 Block Public Access 和 Object Ownership；内部或付费附件
+建议使用与公开图片分离的私有桶。上线前必须以匿名请求验证两个前缀均返回 `403/404`，
+附件只能通过上述鉴权接口读取。
 
 ## 8. Python 完整示例
 
@@ -975,7 +1115,7 @@ python3 automation.py
 ## 10. 自动化实现注意事项
 
 1. 创建帖子和评论没有幂等键。请求超时并不代表服务端没有成功，不能立即盲目重试；应保存本地任务 ID，并通过列表查询或内容指纹去重。
-2. 只对可安全重复的 `GET` 请求做自动重试。对创建、编辑、删除等写请求，在确认服务端结果前不要自动重放。
+2. 只对可安全重复的 `GET` 请求做自动重试。对创建、编辑、删除等写请求，在确认服务端结果前不要自动重放。附件 `POST /api/attachment/access/{id}` 是明确的幂等例外，但结果不确定时仍应优先重查帖子详情中的 `accessGranted`。
 3. 启动任务时先调用 `/api/user/current`；只有 `success=true` 且 `data` 非空才继续。
 4. 每次运行先匿名读取登录配置；取得 token 后再次读取完整配置和分类。不要把站点开关、分类 ID、验证码策略或 token 有效期写死。
 5. 帖子 ID 按字符串保存，评论 ID 按整数保存。不要把评论响应中的内部 `entityId` 当作外部帖子 ID。
@@ -994,6 +1134,8 @@ python3 automation.py
 - 发帖处理器：`internal/handlers/api/topic_handlers.go`
 - 发帖请求与校验：`internal/models/req/request.go`、`internal/services/topic_publish_service.go`
 - 评论处理器与服务：`internal/handlers/api/comment_handlers.go`、`internal/services/comment_service.go`
+- 附件处理器与服务：`internal/handlers/api/attachment_handlers.go`、`internal/services/attachment_service.go`
+- 文档校验与转换：`internal/pkg/docpreview/`
 - 统一响应：`internal/pkg/ginx/response.go`
 - 返回结构：`internal/models/resp/response.go`
 - 前端实际调用：`web/lib/api/client.ts`、`web/components/topic/topic-create-form.tsx`、`web/components/comment/index.tsx`

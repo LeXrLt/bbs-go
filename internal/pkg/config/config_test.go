@@ -278,6 +278,66 @@ func TestCalendarFeedTokenIsNotSerialized(t *testing.T) {
 	}
 }
 
+func TestReadConfigDocumentPreviewDefaults(t *testing.T) {
+	reader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
+
+	cfg, _, err := readConfig(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DocumentPreview.ConverterURL != "" {
+		t.Fatalf("converterURL=%q want empty", cfg.DocumentPreview.ConverterURL)
+	}
+	if cfg.DocumentPreview.TimeoutSeconds != DefaultDocumentConverterTimeoutSeconds {
+		t.Fatalf("timeoutSeconds=%d want %d", cfg.DocumentPreview.TimeoutSeconds, DefaultDocumentConverterTimeoutSeconds)
+	}
+	if cfg.DocumentPreview.MaxOutputMB != DefaultDocumentPreviewMaxOutputMB {
+		t.Fatalf("maxOutputMB=%d want %d", cfg.DocumentPreview.MaxOutputMB, DefaultDocumentPreviewMaxOutputMB)
+	}
+}
+
+func TestReadConfigDocumentPreviewEnvironmentAndValidation(t *testing.T) {
+	t.Setenv(BBSGO_DOCUMENT_CONVERTER_URL, "http://converter.internal:3000/")
+	t.Setenv(BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS, "90")
+	t.Setenv(BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, "75")
+	reader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
+
+	cfg, _, err := readConfig(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DocumentPreview.ConverterURL != "http://converter.internal:3000" || cfg.DocumentPreview.TimeoutSeconds != 90 || cfg.DocumentPreview.MaxOutputMB != 75 {
+		t.Fatalf("document preview config=%+v", cfg.DocumentPreview)
+	}
+
+	for _, test := range []struct {
+		name    string
+		envName string
+		value   string
+	}{
+		{name: "credentials", envName: BBSGO_DOCUMENT_CONVERTER_URL, value: "https://user:secret@converter.example.com"},
+		{name: "path", envName: BBSGO_DOCUMENT_CONVERTER_URL, value: "https://converter.example.com/subpath"},
+		{name: "query", envName: BBSGO_DOCUMENT_CONVERTER_URL, value: "https://converter.example.com?token=secret"},
+		{name: "timeout", envName: BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS, value: strconv.Itoa(MaxDocumentConverterTimeoutSeconds + 1)},
+		{name: "output", envName: BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, value: "0"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv(BBSGO_DOCUMENT_CONVERTER_URL, "http://converter.internal:3000")
+			t.Setenv(BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS, "60")
+			t.Setenv(BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, "50")
+			t.Setenv(test.envName, test.value)
+			invalidReader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
+			_, _, err := readConfig(invalidReader)
+			if err == nil || !strings.Contains(err.Error(), test.envName) {
+				t.Fatalf("expected %s validation error, got %v", test.envName, err)
+			}
+			if strings.Contains(err.Error(), "secret") {
+				t.Fatalf("validation error leaked URL input: %v", err)
+			}
+		})
+	}
+}
+
 func newTestConfigReader(t *testing.T, configPath string) *viper.Viper {
 	t.Helper()
 	reader := viper.New()
@@ -286,13 +346,18 @@ func newTestConfigReader(t *testing.T, configPath string) *viper.Viper {
 	reader.SetDefault("calendar.baseUrl", DefaultCalendarBaseURL)
 	reader.SetDefault("calendar.timeoutSeconds", DefaultCalendarTimeoutSeconds)
 	reader.SetDefault("calendar.cacheSeconds", DefaultCalendarCacheSeconds)
+	reader.SetDefault("documentPreview.timeoutSeconds", DefaultDocumentConverterTimeoutSeconds)
+	reader.SetDefault("documentPreview.maxOutputMB", DefaultDocumentPreviewMaxOutputMB)
 	if err := reader.BindEnv("loginRequired", BBSGO_LOGIN_REQUIRED); err != nil {
 		t.Fatal(err)
 	}
 	for key, envName := range map[string]string{
-		"calendar.baseUrl":        BBSGO_CALENDAR_BASE_URL,
-		"calendar.timeoutSeconds": BBSGO_CALENDAR_TIMEOUT_SECONDS,
-		"calendar.cacheSeconds":   BBSGO_CALENDAR_CACHE_SECONDS,
+		"calendar.baseUrl":               BBSGO_CALENDAR_BASE_URL,
+		"calendar.timeoutSeconds":        BBSGO_CALENDAR_TIMEOUT_SECONDS,
+		"calendar.cacheSeconds":          BBSGO_CALENDAR_CACHE_SECONDS,
+		"documentPreview.converterUrl":   BBSGO_DOCUMENT_CONVERTER_URL,
+		"documentPreview.timeoutSeconds": BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS,
+		"documentPreview.maxOutputMB":    BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB,
 	} {
 		if err := reader.BindEnv(key, envName); err != nil {
 			t.Fatal(err)

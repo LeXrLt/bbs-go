@@ -1,9 +1,85 @@
 package uploader
 
 import (
-	"bbs-go/internal/models/dto"
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/aliyun/aliyun-oss-go-sdk/oss"
+
+	"bbs-go/internal/models/dto"
 )
+
+func TestAliyunOssUploader_PutObject_OmitsACL(t *testing.T) {
+	requestHeaders := make(chan http.Header, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		requestHeaders <- r.Header.Clone()
+		w.Header().Set("x-oss-request-id", "test-request-id")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	const (
+		accessKeyID     = "test-key-id"
+		accessKeySecret = "test-key-secret"
+		bucketName      = "test-bucket"
+	)
+	client, err := oss.New(server.URL, accessKeyID, accessKeySecret, oss.UseCname(true))
+	if err != nil {
+		t.Fatalf("oss.New() error = %v", err)
+	}
+	bucket, err := client.Bucket(bucketName)
+	if err != nil {
+		t.Fatalf("Client.Bucket() error = %v", err)
+	}
+	cfg := dto.UploadConfig{AliyunOss: dto.AliyunOssUploadConfig{
+		Endpoint:        server.URL,
+		AccessKeyId:     accessKeyID,
+		AccessKeySecret: accessKeySecret,
+		Bucket:          bucketName,
+		Host:            server.URL,
+	}}
+	uploader := &AliyunOssUploader{bucket: bucket}
+
+	tests := []struct {
+		name        string
+		key         string
+		private     bool
+		contentType string
+	}{
+		{name: "ordinary image", key: "images/test.jpg", contentType: "image/jpeg"},
+		{name: "private attachment", key: "attachments/test.pdf", private: true, contentType: "application/pdf"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := []byte("object body")
+			disposition := `attachment; filename="test.pdf"`
+			_, err := uploader.PutObject(cfg, tt.key, bytes.NewReader(body), &PutOptions{
+				ContentType:        tt.contentType,
+				ContentDisposition: disposition,
+				ContentLength:      int64(len(body)),
+				Private:            tt.private,
+			})
+			if err != nil {
+				t.Fatalf("PutObject() error = %v", err)
+			}
+
+			headers := <-requestHeaders
+			if _, ok := headers["X-Oss-Object-Acl"]; ok {
+				t.Fatalf("PutObject() sent x-oss-object-acl header %q", headers.Get("X-Oss-Object-Acl"))
+			}
+			if got := headers.Get("Content-Type"); got != tt.contentType {
+				t.Errorf("Content-Type = %q, want %q", got, tt.contentType)
+			}
+			if got := headers.Get("Content-Disposition"); got != disposition {
+				t.Errorf("Content-Disposition = %q, want %q", got, disposition)
+			}
+		})
+	}
+}
 
 func TestAliyunOssUploader_InitBucket_ConfigValidation(t *testing.T) {
 	tests := []struct {

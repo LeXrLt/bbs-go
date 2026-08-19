@@ -1,10 +1,81 @@
 package uploader
 
 import (
-	"bbs-go/internal/models/dto"
+	"bytes"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	"bbs-go/internal/models/dto"
 )
+
+func TestAwsS3Uploader_PutObject_OmitsACL(t *testing.T) {
+	requestHeaders := make(chan http.Header, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		requestHeaders <- r.Header.Clone()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := dto.UploadConfig{AwsS3: dto.AwsS3UploadConfig{
+		Region:          "us-east-1",
+		Bucket:          "test-bucket",
+		AccessKeyId:     "test-access-key-id",
+		AccessKeySecret: "test-secret-access-key",
+	}}
+	client := s3.NewFromConfig(aws.Config{
+		Region:      cfg.AwsS3.Region,
+		Credentials: credentials.NewStaticCredentialsProvider(cfg.AwsS3.AccessKeyId, cfg.AwsS3.AccessKeySecret, ""),
+		HTTPClient:  server.Client(),
+	}, func(options *s3.Options) {
+		options.BaseEndpoint = aws.String(server.URL)
+		options.UsePathStyle = true
+	})
+	uploader := &AwsS3Uploader{client: client, currentCfg: cfg}
+
+	tests := []struct {
+		name        string
+		key         string
+		private     bool
+		contentType string
+	}{
+		{name: "ordinary image", key: "images/test.jpg", contentType: "image/jpeg"},
+		{name: "private attachment", key: "attachments/test.pdf", private: true, contentType: "application/pdf"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := []byte("object body")
+			disposition := `attachment; filename="test.pdf"`
+			_, err := uploader.PutObject(cfg, tt.key, bytes.NewReader(body), &PutOptions{
+				ContentType:        tt.contentType,
+				ContentDisposition: disposition,
+				ContentLength:      int64(len(body)),
+				Private:            tt.private,
+			})
+			if err != nil {
+				t.Fatalf("PutObject() error = %v", err)
+			}
+
+			headers := <-requestHeaders
+			if _, ok := headers["X-Amz-Acl"]; ok {
+				t.Fatalf("PutObject() sent x-amz-acl header %q", headers.Get("X-Amz-Acl"))
+			}
+			if got := headers.Get("Content-Type"); got != tt.contentType {
+				t.Errorf("Content-Type = %q, want %q", got, tt.contentType)
+			}
+			if got := headers.Get("Content-Disposition"); got != disposition {
+				t.Errorf("Content-Disposition = %q, want %q", got, disposition)
+			}
+		})
+	}
+}
 
 func TestAwsS3Uploader_InitClient_ConfigValidation(t *testing.T) {
 	tests := []struct {

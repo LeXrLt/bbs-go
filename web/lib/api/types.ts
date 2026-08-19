@@ -87,6 +87,9 @@ export interface Attachment {
   id: EntityId
   fileName?: string
   fileSize?: number
+  fileType: string
+  previewable: boolean
+  accessGranted: boolean
   downloadScore?: number
   downloadCount?: number
   downloaded?: boolean

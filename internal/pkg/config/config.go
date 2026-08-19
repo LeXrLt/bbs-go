@@ -17,26 +17,33 @@ import (
 )
 
 const (
-	BBSGO_ENV                      = "BBSGO_ENV"
-	BBSGO_LOGIN_REQUIRED           = "BBSGO_LOGIN_REQUIRED"
-	BBSGO_CALENDAR_BASE_URL        = "BBSGO_CALENDAR_BASE_URL"
-	BBSGO_CALENDAR_TIMEOUT_SECONDS = "BBSGO_CALENDAR_TIMEOUT_SECONDS"
-	BBSGO_CALENDAR_CACHE_SECONDS   = "BBSGO_CALENDAR_CACHE_SECONDS"
-	BBSGO_CALENDAR_FEED_TOKEN      = "BBSGO_CALENDAR_FEED_TOKEN"
-	ENV_PREFIX                     = "BBSGO"
+	BBSGO_ENV                                = "BBSGO_ENV"
+	BBSGO_LOGIN_REQUIRED                     = "BBSGO_LOGIN_REQUIRED"
+	BBSGO_CALENDAR_BASE_URL                  = "BBSGO_CALENDAR_BASE_URL"
+	BBSGO_CALENDAR_TIMEOUT_SECONDS           = "BBSGO_CALENDAR_TIMEOUT_SECONDS"
+	BBSGO_CALENDAR_CACHE_SECONDS             = "BBSGO_CALENDAR_CACHE_SECONDS"
+	BBSGO_CALENDAR_FEED_TOKEN                = "BBSGO_CALENDAR_FEED_TOKEN"
+	BBSGO_DOCUMENT_CONVERTER_URL             = "BBSGO_DOCUMENT_CONVERTER_URL"
+	BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS = "BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS"
+	BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB     = "BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB"
+	ENV_PREFIX                               = "BBSGO"
 
 	EnvDev  = "dev"
 	EnvTest = "test"
 	EnvProd = "prod"
 
-	DefaultLoginRequired          = true
-	DefaultCalendarBaseURL        = "https://calendar.bvcportal.com"
-	DefaultCalendarTimeoutSeconds = 8
-	DefaultCalendarCacheSeconds   = 30
+	DefaultLoginRequired                   = true
+	DefaultCalendarBaseURL                 = "https://calendar.bvcportal.com"
+	DefaultCalendarTimeoutSeconds          = 8
+	DefaultCalendarCacheSeconds            = 30
+	DefaultDocumentConverterTimeoutSeconds = 60
+	DefaultDocumentPreviewMaxOutputMB      = 50
 	// MaxCalendarTimeoutSeconds bounds the upstream request timeout.
 	MaxCalendarTimeoutSeconds = 60
 	// MaxCalendarCacheSeconds bounds the lifetime of an in-memory feed entry.
-	MaxCalendarCacheSeconds = 3600
+	MaxCalendarCacheSeconds            = 3600
+	MaxDocumentConverterTimeoutSeconds = 300
+	MaxDocumentPreviewOutputMB         = 200
 )
 
 type Language string
@@ -80,6 +87,8 @@ func init() {
 	v.SetDefault("calendar.baseUrl", DefaultCalendarBaseURL)
 	v.SetDefault("calendar.timeoutSeconds", DefaultCalendarTimeoutSeconds)
 	v.SetDefault("calendar.cacheSeconds", DefaultCalendarCacheSeconds)
+	v.SetDefault("documentPreview.timeoutSeconds", DefaultDocumentConverterTimeoutSeconds)
+	v.SetDefault("documentPreview.maxOutputMB", DefaultDocumentPreviewMaxOutputMB)
 	if err := v.BindEnv("loginRequired", BBSGO_LOGIN_REQUIRED); err != nil {
 		panic(fmt.Errorf("bind %s: %w", BBSGO_LOGIN_REQUIRED, err))
 	}
@@ -93,23 +102,34 @@ func init() {
 			panic(fmt.Errorf("bind %s: %w", envName, err))
 		}
 	}
+	documentPreviewEnvBindings := map[string]string{
+		"documentPreview.converterUrl":   BBSGO_DOCUMENT_CONVERTER_URL,
+		"documentPreview.timeoutSeconds": BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS,
+		"documentPreview.maxOutputMB":    BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB,
+	}
+	for key, envName := range documentPreviewEnvBindings {
+		if err := v.BindEnv(key, envName); err != nil {
+			panic(fmt.Errorf("bind %s: %w", envName, err))
+		}
+	}
 
 	configFile = getConfigFilePath(configFileName)
 }
 
 type Config struct {
-	Language       Language       `yaml:"language"`       // 语言
-	Port           int            `yaml:"port"`           // 端口
-	IPLocator      IPLocator      `yaml:"ipLocator"`      // IP定位配置
-	AllowedOrigins []string       `yaml:"allowedOrigins"` // 跨域白名单
-	Installed      bool           `yaml:"installed"`      // 是否已安装
-	LoginRequired  bool           `yaml:"loginRequired"`  // 是否强制登录后访问站点内容
-	IDCodec        IDCodecConfig  `yaml:"idCodec"`        // ID 编解码配置
-	Logger         LoggerConfig   `yaml:"logger"`         // 日志配置
-	DB             DBConfig       `yaml:"db"`             // 数据库配置
-	Smtp           SmtpConfig     `yaml:"smtp"`           // smtp
-	Search         SearchConfig   `yaml:"search"`         // 搜索配置
-	Calendar       CalendarConfig `yaml:"calendar"`       // 金融日历数据源
+	Language        Language              `yaml:"language"`        // 语言
+	Port            int                   `yaml:"port"`            // 端口
+	IPLocator       IPLocator             `yaml:"ipLocator"`       // IP定位配置
+	AllowedOrigins  []string              `yaml:"allowedOrigins"`  // 跨域白名单
+	Installed       bool                  `yaml:"installed"`       // 是否已安装
+	LoginRequired   bool                  `yaml:"loginRequired"`   // 是否强制登录后访问站点内容
+	IDCodec         IDCodecConfig         `yaml:"idCodec"`         // ID 编解码配置
+	Logger          LoggerConfig          `yaml:"logger"`          // 日志配置
+	DB              DBConfig              `yaml:"db"`              // 数据库配置
+	Smtp            SmtpConfig            `yaml:"smtp"`            // smtp
+	Search          SearchConfig          `yaml:"search"`          // 搜索配置
+	Calendar        CalendarConfig        `yaml:"calendar"`        // 金融日历数据源
+	DocumentPreview DocumentPreviewConfig `yaml:"documentPreview"` // Office 文档预览转换
 }
 
 type IPLocator struct {
@@ -157,6 +177,12 @@ type CalendarConfig struct {
 	FeedToken      string `yaml:"-" json:"-" mapstructure:"-"`
 }
 
+type DocumentPreviewConfig struct {
+	ConverterURL   string `yaml:"converterUrl"`
+	TimeoutSeconds int    `yaml:"timeoutSeconds"`
+	MaxOutputMB    int    `yaml:"maxOutputMB"`
+}
+
 func ReadConfig() (cfg *Config, exists bool, err error) {
 	return readConfig(v)
 }
@@ -201,8 +227,43 @@ func readConfig(reader *viper.Viper) (cfg *Config, exists bool, err error) {
 	if err = readCalendarConfig(reader, &cfg.Calendar); err != nil {
 		return nil, exists, err
 	}
+	if err = readDocumentPreviewConfig(reader, &cfg.DocumentPreview); err != nil {
+		return nil, exists, err
+	}
 
 	return cfg, exists, nil
+}
+
+func readDocumentPreviewConfig(reader *viper.Viper, preview *DocumentPreviewConfig) error {
+	converterURL := strings.TrimRight(strings.TrimSpace(reader.GetString("documentPreview.converterUrl")), "/")
+	if converterURL != "" {
+		parsedURL, err := url.Parse(converterURL)
+		if err != nil || parsedURL == nil || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") || parsedURL.Host == "" || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || (parsedURL.Path != "" && parsedURL.Path != "/") {
+			return fmt.Errorf("invalid %s: expected an absolute HTTP(S) root URL without credentials, path, query, or fragment", BBSGO_DOCUMENT_CONVERTER_URL)
+		}
+	}
+
+	timeoutRaw := strings.TrimSpace(reader.GetString("documentPreview.timeoutSeconds"))
+	if timeoutRaw == "" {
+		timeoutRaw = strconv.Itoa(DefaultDocumentConverterTimeoutSeconds)
+	}
+	timeoutSeconds, err := parsePositiveConfigInt(timeoutRaw, BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS, MaxDocumentConverterTimeoutSeconds)
+	if err != nil {
+		return err
+	}
+	maxOutputRaw := strings.TrimSpace(reader.GetString("documentPreview.maxOutputMB"))
+	if maxOutputRaw == "" {
+		maxOutputRaw = strconv.Itoa(DefaultDocumentPreviewMaxOutputMB)
+	}
+	maxOutputMB, err := parsePositiveConfigInt(maxOutputRaw, BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, MaxDocumentPreviewOutputMB)
+	if err != nil {
+		return err
+	}
+
+	preview.ConverterURL = converterURL
+	preview.TimeoutSeconds = timeoutSeconds
+	preview.MaxOutputMB = maxOutputMB
+	return nil
 }
 
 func readCalendarConfig(reader *viper.Viper, calendar *CalendarConfig) error {
