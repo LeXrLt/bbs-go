@@ -789,14 +789,16 @@ curl -sS -X POST "$BBS_BASE_URL/api/upload" \
 
 | 类型 | 扩展名 | 预览处理 |
 | --- | --- | --- |
-| PDF | `.pdf` | 校验后直接作为 PDF 预览 |
+| PDF | `.pdf` | 校验后直接预览；仅含权限限制且可用空口令打开时生成规范化预览 |
 | Word | `.doc`、`.docx` | 上传时同步转换为 PDF |
 | Excel | `.xls`、`.xlsx` | 上传时同步转换为 PDF |
 | PowerPoint | `.ppt`、`.pptx` | 上传时同步转换为 PDF |
 
 扩展名匹配不代表文件会被信任。服务端会核对 PDF 签名、旧版 Office OLE 头，
-以及 OOXML ZIP 结构和实际文档类型；空文件、伪造扩展名、异常压缩包和加密的
-Office 文件会被拒绝。宏专用扩展名以及检测到 VBA 项目的 OOXML 文件同样会被拒绝；
+以及 OOXML ZIP 结构和实际文档类型；空文件、伪造扩展名、异常压缩包、加密的
+Office 文件，以及需要输入打开密码的 PDF 会被拒绝。仅设置打印、复制或修改权限、
+无需输入密码即可打开的 PDF 会保留原文件用于下载，并生成无加密的独立在线预览。
+宏专用扩展名以及检测到 VBA 项目的 OOXML 文件同样会被拒绝；
 `.docm`、`.xlsm`、`.pptm`、WPS、OpenDocument 等不属于本期预览格式。站点配置允许
 的其他附件仍可下载，但响应中的 `previewable` 为 `false`。
 

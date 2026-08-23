@@ -98,11 +98,54 @@ func (s *attachmentService) Upload(ctx context.Context, userId int64, filename, 
 	}
 
 	contentType, previewStatus := detectAttachmentContentType(sourcePath, ext), constants.AttachmentPreviewUnsupported
-	var previewPDF []byte
+	var (
+		previewPDF        []byte
+		normalizedPDFPath string
+		normalizedPDFSize int64
+	)
 	if isPreviewDocumentExtension(ext) {
 		info, validateErr := docpreview.Validate(sourcePath, filename)
+		if ext == ".pdf" && errors.Is(validateErr, docpreview.ErrEncryptedDocument) {
+			normalizedFile, tempErr := os.CreateTemp("", "bbsgo-pdf-preview-*.pdf")
+			if tempErr != nil {
+				slog.Error("create attachment PDF preview file", slog.Any("err", tempErr))
+				return nil, errors.New(locales.Get("attachment.preview_unavailable"))
+			}
+			normalizedPDFPath = normalizedFile.Name()
+			defer os.Remove(normalizedPDFPath)
+
+			timeoutSeconds, maxOutputMB := config.DefaultDocumentConverterTimeoutSeconds, config.DefaultDocumentPreviewMaxOutputMB
+			if config.Instance != nil {
+				if config.Instance.DocumentPreview.TimeoutSeconds > 0 {
+					timeoutSeconds = config.Instance.DocumentPreview.TimeoutSeconds
+				}
+				if config.Instance.DocumentPreview.MaxOutputMB > 0 {
+					maxOutputMB = config.Instance.DocumentPreview.MaxOutputMB
+				}
+			}
+			normalizeCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+			normalizedPDFSize, err = docpreview.NormalizePDFWithEmptyPassword(
+				normalizeCtx,
+				sourcePath,
+				normalizedFile,
+				int64(maxOutputMB)*1024*1024,
+			)
+			cancel()
+			closeErr := normalizedFile.Close()
+			if err != nil || closeErr != nil {
+				if err == nil {
+					err = closeErr
+				}
+				slog.Warn("attachment PDF normalization failed", slog.Any("err", err))
+				if errors.Is(err, docpreview.ErrPDFPasswordRequired) {
+					return nil, errors.New(locales.Get("attachment.pdf_password_required"))
+				}
+				return nil, errors.New(locales.Get("attachment.preview_unavailable"))
+			}
+			info, validateErr = docpreview.Validate(normalizedPDFPath, filename)
+		}
 		if validateErr != nil {
-			slog.Warn("attachment document validation failed", slog.String("extension", ext), slog.Any("err", validateErr))
+			slog.Warn("attachment document validation failed", slog.String("extension", ext), slog.Int64("normalizedPDFSize", normalizedPDFSize), slog.Any("err", validateErr))
 			return nil, errors.New(locales.Get("attachment.invalid_document"))
 		}
 		contentType = info.MIMEType
@@ -166,18 +209,39 @@ func (s *attachmentService) Upload(ctx context.Context, userId int64, filename, 
 
 	previewKey, previewSize := "", int64(0)
 	if previewStatus == constants.AttachmentPreviewReady {
-		if ext == ".pdf" {
+		if ext == ".pdf" && normalizedPDFPath == "" {
 			previewKey, previewSize = key, contentLength
 		} else {
-			previewKey, previewSize = uploader.GenerateAttachmentPreviewKey(attId), int64(len(previewPDF))
-			if _, previewErr := UploadService.PutObjectWithMethod(storageMethod, previewKey, bytes.NewReader(previewPDF), &uploader.PutOptions{
+			var (
+				previewReader io.Reader = bytes.NewReader(previewPDF)
+				previewClose  func() error
+			)
+			previewSize = int64(len(previewPDF))
+			if normalizedPDFPath != "" {
+				normalizedFile, openErr := os.Open(normalizedPDFPath)
+				if openErr != nil {
+					s.cleanupAttachmentObjects(storageMethod, key)
+					return nil, errors.New(locales.Get("attachment.preview_unavailable"))
+				}
+				previewReader, previewClose, previewSize = normalizedFile, normalizedFile.Close, normalizedPDFSize
+			}
+			previewKey = uploader.GenerateAttachmentPreviewKey(attId)
+			_, previewErr := UploadService.PutObjectWithMethod(storageMethod, previewKey, previewReader, &uploader.PutOptions{
 				ContentType:        "application/pdf",
 				ContentDisposition: mime.FormatMediaType("inline", map[string]string{"filename": strings.TrimSuffix(filename, ext) + ".pdf"}),
 				ContentLength:      previewSize,
 				Private:            true,
-			}); previewErr != nil {
+			})
+			var previewCloseErr error
+			if previewClose != nil {
+				previewCloseErr = previewClose()
+			}
+			if previewErr != nil || previewCloseErr != nil {
 				s.cleanupAttachmentObjects(storageMethod, key, previewKey)
-				return nil, previewErr
+				if previewErr != nil {
+					return nil, previewErr
+				}
+				return nil, previewCloseErr
 			}
 		}
 	}

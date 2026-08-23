@@ -251,6 +251,7 @@ func TestValidateRejectsEncryptedPDF(t *testing.T) {
 	plain, _ := buildClassicTestPDF("", "")
 	encrypted, _ := buildClassicTestPDF(" /Encrypt 2 0 R", "")
 	escaped, _ := buildClassicTestPDF(" /Encr#79pt 2 0 R", "")
+	inlineEncrypted := bytes.Replace(append([]byte(nil), encrypted...), []byte("trailer\n<<"), []byte("trailer <<"), 1)
 	xrefStreamEncrypted := buildXrefStreamTestPDF(" /Encr#79pt 2 0 R")
 	hybridXrefEncrypted := buildHybridXrefTestPDF(" /Encr#79pt 1 0 R")
 	incremental := buildIncrementalTestPDF(t)
@@ -262,6 +263,7 @@ func TestValidateRejectsEncryptedPDF(t *testing.T) {
 	}{
 		{name: "plain classic xref", data: plain},
 		{name: "classic trailer Encrypt", data: encrypted, wantError: ErrEncryptedDocument},
+		{name: "inline classic trailer Encrypt", data: inlineEncrypted, wantError: ErrEncryptedDocument},
 		{name: "escaped Encrypt name", data: escaped, wantError: ErrEncryptedDocument},
 		{name: "xref stream Encrypt", data: xrefStreamEncrypted, wantError: ErrEncryptedDocument},
 		{name: "hybrid XRefStm Encrypt", data: hybridXrefEncrypted, wantError: ErrEncryptedDocument},
@@ -290,6 +292,14 @@ func TestValidateRejectsEncryptedPDF(t *testing.T) {
 
 func TestValidateRejectsMalformedPDFXref(t *testing.T) {
 	validEntry := "0000000000 65535 f \n"
+	inlineTrailer := bytes.Replace(
+		buildCustomClassicTestPDF("0 1\n"+validEntry+"1 1\n{OBJECT_OFFSET} 00000 n \n", "/Size 2 /Root 1 0 R"),
+		[]byte("trailer\n<<"),
+		[]byte("trailer <<"),
+		1,
+	)
+	longInlineTrailer, _ := buildClassicTestPDF(" /Padding ("+strings.Repeat("a", 256)+")", "")
+	longInlineTrailer = bytes.Replace(longInlineTrailer, []byte("trailer\n<<"), []byte("trailer <<"), 1)
 	badStreamEntry := buildXrefStreamTestPDF("")
 	streamStart := bytes.Index(badStreamEntry, []byte("stream\n")) + len("stream\n")
 	if streamStart < len("stream\n") {
@@ -309,6 +319,8 @@ func TestValidateRejectsMalformedPDFXref(t *testing.T) {
 	}{
 		{name: "multiple valid subsections", data: buildCustomClassicTestPDF("0 1\n"+validEntry+"1 1\n{OBJECT_OFFSET} 00000 n \n", "/Size 2 /Root 1 0 R")},
 		{name: "valid CRLF entries", data: buildCustomClassicTestPDF("0 2\r\n0000000000 65535 f \r\n{OBJECT_OFFSET} 00000 n \r\n", "/Size 2 /Root 1 0 R")},
+		{name: "valid inline trailer dictionary", data: inlineTrailer},
+		{name: "valid long inline trailer dictionary", data: longInlineTrailer},
 		{name: "arbitrary token before trailer", data: buildCustomClassicTestPDF("garbage\n", "/Size 2 /Root 1 0 R"), wantErr: true},
 		{name: "missing subsection count", data: buildCustomClassicTestPDF("0\n", "/Size 2 /Root 1 0 R"), wantErr: true},
 		{name: "zero subsection count", data: buildCustomClassicTestPDF("0 0\n", "/Size 2 /Root 1 0 R"), wantErr: true},

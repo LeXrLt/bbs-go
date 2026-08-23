@@ -429,7 +429,7 @@ func parseClassicPDFXref(reader io.ReaderAt, fileSize, sectionOffset int64, lexe
 	entries := make(map[uint64]pdfXrefEntry)
 
 	for {
-		line, err := lexer.readPhysicalLine()
+		line, err := lexer.readPhysicalLineWithLimit(maxPDFTokenBytes)
 		if err != nil {
 			return nil, fmt.Errorf("classic xref has no trailer: %w", err)
 		}
@@ -437,11 +437,15 @@ func parseClassicPDFXref(reader io.ReaderAt, fileSize, sectionOffset int64, lexe
 		if len(line) == 0 {
 			continue
 		}
-		if bytes.Equal(line, []byte("trailer")) {
+		if trailerRemainder, trailer := pdfLineKeywordRemainder(line, "trailer"); trailer {
 			if len(ranges) == 0 {
 				return nil, errors.New("classic xref has no subsections")
 			}
-			dictionary, err := parsePDFDictionary(lexer)
+			trailerLexer := lexer
+			if len(trailerRemainder) > 0 {
+				trailerLexer = newPDFLexer(io.MultiReader(bytes.NewReader(trailerRemainder), lexer.reader))
+			}
+			dictionary, err := parsePDFDictionary(trailerLexer)
 			if err != nil {
 				return nil, err
 			}
@@ -1461,11 +1465,18 @@ type pdfLexer struct {
 }
 
 func (lexer *pdfLexer) readPhysicalLine() ([]byte, error) {
+	return lexer.readPhysicalLineWithLimit(maxPDFXrefLineBytes)
+}
+
+func (lexer *pdfLexer) readPhysicalLineWithLimit(limit int) ([]byte, error) {
 	if len(lexer.tokenBuffer) != 0 {
 		return nil, errors.New("cannot read an xref line with buffered PDF tokens")
 	}
+	if limit <= 0 {
+		return nil, errors.New("PDF xref line limit must be positive")
+	}
 	line := make([]byte, 0, 32)
-	for len(line) <= maxPDFXrefLineBytes {
+	for len(line) <= limit {
 		value, err := lexer.readByte()
 		if err != nil {
 			return nil, err
@@ -1482,7 +1493,7 @@ func (lexer *pdfLexer) readPhysicalLine() ([]byte, error) {
 			line = append(line, value)
 		}
 	}
-	return nil, fmt.Errorf("PDF xref line exceeds %d bytes", maxPDFXrefLineBytes)
+	return nil, fmt.Errorf("PDF xref line exceeds %d bytes", limit)
 }
 
 func (lexer *pdfLexer) readRequiredLineEnding() error {
@@ -1794,6 +1805,19 @@ func splitPDFWhitespaceFields(line []byte) [][]byte {
 		}
 	}
 	return fields
+}
+
+func pdfLineKeywordRemainder(line []byte, keyword string) ([]byte, bool) {
+	if len(line) < len(keyword) || !bytes.Equal(line[:len(keyword)], []byte(keyword)) {
+		return nil, false
+	}
+	if len(line) == len(keyword) {
+		return nil, true
+	}
+	if !isPDFWhitespace(line[len(keyword)]) {
+		return nil, false
+	}
+	return line[len(keyword):], true
 }
 
 func isPDFWhitespace(value byte) bool {
