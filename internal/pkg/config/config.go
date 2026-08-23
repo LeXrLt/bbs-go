@@ -36,14 +36,14 @@ const (
 	DefaultCalendarBaseURL                 = "https://calendar.bvcportal.com"
 	DefaultCalendarTimeoutSeconds          = 8
 	DefaultCalendarCacheSeconds            = 30
-	DefaultDocumentConverterTimeoutSeconds = 60
-	DefaultDocumentPreviewMaxOutputMB      = 50
+	DefaultDocumentConverterTimeoutSeconds = 300
+	DefaultDocumentPreviewMaxOutputMB      = 256
 	// MaxCalendarTimeoutSeconds bounds the upstream request timeout.
 	MaxCalendarTimeoutSeconds = 60
 	// MaxCalendarCacheSeconds bounds the lifetime of an in-memory feed entry.
 	MaxCalendarCacheSeconds            = 3600
 	MaxDocumentConverterTimeoutSeconds = 300
-	MaxDocumentPreviewOutputMB         = 200
+	MaxDocumentPreviewOutputMB         = 256
 )
 
 type Language string

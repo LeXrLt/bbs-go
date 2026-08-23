@@ -18,7 +18,7 @@ import (
 
 const (
 	DefaultMaxZIPEntries           = 4096
-	DefaultMaxZIPUncompressedBytes = int64(256 << 20)
+	DefaultMaxZIPUncompressedBytes = int64(1 << 30)
 
 	maxContentTypesBytes = int64(2 << 20)
 )

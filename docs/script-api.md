@@ -783,8 +783,9 @@ curl -sS -X POST "$BBS_BASE_URL/api/upload" \
 ### 7.2 上传帖子附件
 
 仅普通帖子支持附件，并且公开配置中的 `attachmentConfig.enabled` 必须为 `true`。
-上传接口接受的扩展名、单文件大小和每帖数量以 `attachmentConfig` 为准；默认配置
-允许文档、纯文本和常见压缩包，其中以下格式支持站内在线预览：
+上传接口接受的扩展名、单文件大小和每帖数量以 `attachmentConfig` 为准；单文件
+默认及最高上限均为 `256MB`。默认配置允许文档、纯文本和常见压缩包，其中以下格式
+支持站内在线预览：
 
 | 类型 | 扩展名 | 预览处理 |
 | --- | --- | --- |
@@ -798,6 +799,9 @@ curl -sS -X POST "$BBS_BASE_URL/api/upload" \
 Office 文件会被拒绝。宏专用扩展名以及检测到 VBA 项目的 OOXML 文件同样会被拒绝；
 `.docm`、`.xlsm`、`.pptm`、WPS、OpenDocument 等不属于本期预览格式。站点配置允许
 的其他附件仍可下载，但响应中的 `previewable` 为 `false`。
+
+OOXML 校验会流式统计 ZIP 条目，解压后总量最高允许 `1GiB`，超过时会作为异常压缩包
+拒绝；该限制用于在接受 256MB 原件的同时约束压缩炸弹风险。
 
 ```http
 POST /api/attachment/upload
@@ -920,12 +924,12 @@ curl -fsS -OJ \
 | 环境变量 | Compose 默认值 | 约束与用途 |
 | --- | --- | --- |
 | `BBSGO_DOCUMENT_CONVERTER_URL` | `http://document-converter:3000` | Gotenberg 根 URL；只允许路径为空或 `/` 且不含凭据、查询和片段的绝对 HTTP(S) URL |
-| `BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS` | `60` | 单次转换超时，范围 `1..300` 秒 |
-| `BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB` | `50` | 转换后 PDF 最大体积，范围 `1..200` MB |
+| `BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS` | `300` | 单次转换超时，范围 `1..300` 秒 |
+| `BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB` | `256` | 转换后 PDF 最大体积，范围 `1..256` MB |
 
-仓库 Compose 还把 Gotenberg 的请求体限制为 `16MB`。若管理员提高
-`attachmentConfig.maxSizeMB`，必须同步评估并调整该限制、转换输出上限、临时盘和
-容器内存；不要只放宽其中一项。转换 URL 必须指向受信任的内网服务，因为 Office
+仓库 Compose 将单个附件上限设为 `256MB`，并为 multipart 封装把 Gotenberg 请求体
+限制设为 `257MB`；转换输出上限、临时盘和容器内存也已按该边界同步配置。若管理员
+降低 `attachmentConfig.maxSizeMB`，上传接口和前端会使用更小的值。转换 URL 必须指向受信任的内网服务，因为 Office
 原件会发送给该服务；该 URL 只供后端使用，不能暴露给浏览器或脚本。
 
 使用 OSS、COS 或 S3 时，上传器不会发送对象 ACL；这样可兼容已启用 Bucket Owner

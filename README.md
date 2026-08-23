@@ -43,7 +43,7 @@ docker compose up -d
 - 安装向导：<http://localhost:3000/install>
 
 Compose 会同时启动仅内部网络可见的 LibreOffice 文档转换服务，用于 PDF 和 Office
-附件在线预览；该容器不开放宿主机端口，并限制为 1 CPU、1 GiB 内存。
+附件在线预览；该容器不开放宿主机端口，并限制为 1 CPU、2 GiB 内存。
 
 ## 为什么选择 bbs-go
 
@@ -70,7 +70,7 @@ Compose 会同时启动仅内部网络可见的 LibreOffice 文档转换服务�
 ### 内容侧
 
 - 支持帖子、动态、文章发布与编辑
-- 支持 PDF、Word、Excel、PowerPoint 附件上传与站内在线预览
+- 支持最大 256 MB 的 PDF、Word、Excel、PowerPoint 附件上传与站内在线预览
 - 评论、回复、点赞、收藏等完整互动链路
 - 标签与节点管理，便于内容组织和发现
 - 支持投票、隐藏内容等互动玩法

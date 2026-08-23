@@ -68,7 +68,7 @@ export function TopicAttachmentField({
   const { catchError, msgWarning } = useToastActions()
   const inputRef = React.useRef<HTMLInputElement>(null)
   const maxCount = config?.maxCount ?? 5
-  const maxSizeMB = config?.maxSizeMB ?? 10
+  const maxSizeMB = config?.maxSizeMB ?? 256
   const allowedTypes = React.useMemo(
     () => normalizedAllowedTypes(config),
     [config]

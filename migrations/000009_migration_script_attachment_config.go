@@ -22,7 +22,7 @@ func migrate_attachment_config() error {
 		cfg := dto.AttachmentConfig{
 			Enabled:      true,
 			AllowedTypes: []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".md", ".csv", ".zip", ".rar", ".7z", ".tar", ".gz"},
-			MaxSizeMB:    10,
+			MaxSizeMB:    constants.AttachmentMaxSizeMB,
 			MaxCount:     5,
 		}
 		value, err := jsons.ToStr(cfg)

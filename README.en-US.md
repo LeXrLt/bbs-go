@@ -46,7 +46,7 @@ Then open:
 
 Compose also starts an internal-only LibreOffice document converter for inline
 PDF and Office attachment previews. It exposes no host port and is limited to
-1 CPU and 1 GiB of memory.
+1 CPU and 2 GiB of memory.
 
 For production deployment options, environment variables, upgrades, and troubleshooting, see the Docker Hub page:
 
@@ -99,7 +99,7 @@ This comparison is based on public product positioning and common use cases. The
 ### Content and Engagement
 
 - Publish and edit topics, feeds, and articles
-- Upload and preview PDF, Word, Excel, and PowerPoint attachments inline
+- Upload and preview PDF, Word, Excel, and PowerPoint attachments up to 256 MB inline
 - Comments, replies, likes, and favorites
 - Tags and nodes for content organization and discovery
 - Voting and hidden content

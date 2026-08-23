@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	DefaultMaxSourceDocumentBytes = int64(10 << 20)
-	DefaultMaxConvertedPDFBytes   = int64(64 << 20)
+	DefaultMaxSourceDocumentBytes = int64(256 << 20)
+	DefaultMaxConvertedPDFBytes   = int64(256 << 20)
 	gotenbergConvertPath          = "/forms/libreoffice/convert"
 )
 

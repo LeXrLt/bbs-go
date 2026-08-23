@@ -234,6 +234,6 @@ type AwsS3UploadConfig struct {
 type AttachmentConfig struct {
 	Enabled      bool     `json:"enabled"`      // 是否开启附件上传
 	AllowedTypes []string `json:"allowedTypes"` // 允许的扩展名，如 [".pdf",".doc"]，空表示使用默认
-	MaxSizeMB    int      `json:"maxSizeMB"`    // 单个附件大小限制(MB)，0 表示默认 10MB
+	MaxSizeMB    int      `json:"maxSizeMB"`    // 单个附件大小限制(MB)，范围 1..256，0 表示默认 256MB
 	MaxCount     int      `json:"maxCount"`     // 每篇帖子最多附件数，0 表示默认 5
 }

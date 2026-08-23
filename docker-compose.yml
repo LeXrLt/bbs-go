@@ -27,8 +27,9 @@ services:
     restart: unless-stopped
     command:
       - gotenberg
-      - "--api-timeout=${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-60}s"
-      - --api-body-limit=16MB
+      - "--api-timeout=${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-300}s"
+      # One extra MiB leaves room for multipart framing around a 256 MiB file.
+      - --api-body-limit=257MB
       - --api-disable-download-from=true
       - --libreoffice-auto-start=true
       - --libreoffice-max-queue-size=4
@@ -45,9 +46,9 @@ services:
     security_opt:
       - no-new-privileges:true
     tmpfs:
-      - /tmp:size=512m,mode=1777
+      - /tmp:size=1g,mode=1777
     cpus: 1.0
-    mem_limit: 1g
+    mem_limit: 2g
     pids_limit: 256
     stop_grace_period: 30s
     healthcheck:
@@ -83,8 +84,8 @@ services:
       BBSGO_SERVER_URL: http://127.0.0.1:8082
       BBSGO_LOGIN_REQUIRED: "${BBSGO_LOGIN_REQUIRED:-true}"
       BBSGO_DOCUMENT_CONVERTER_URL: http://document-converter:3000
-      BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS: "${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-60}"
-      BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB: "${BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB:-50}"
+      BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS: "${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-300}"
+      BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB: "${BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB:-256}"
       BBSGO_INSTALL_DOCKER_BUILTIN_MYSQL: "true"
       BBSGO_DOCKER_BUILTIN_MYSQL_HOST: mysql
       BBSGO_DOCKER_BUILTIN_MYSQL_PORT: "3306"

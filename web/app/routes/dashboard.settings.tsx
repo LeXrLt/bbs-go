@@ -1171,9 +1171,9 @@ function ContentSettings({
       </Field>
       <Field label={s("content.attachmentMaxSizeMB")}>
         <TooltipNumberInput
-          value={getNumber(attachment.maxSizeMB || 10)}
+          value={getNumber(attachment.maxSizeMB || 256)}
           min={1}
-          max={100}
+          max={256}
           tooltip={s("content.attachmentMaxSizeMBTooltip")}
           onChange={(value) => update("attachmentConfig.maxSizeMB", value)}
         />

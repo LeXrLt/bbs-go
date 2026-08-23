@@ -310,6 +310,16 @@ func TestReadConfigDocumentPreviewEnvironmentAndValidation(t *testing.T) {
 		t.Fatalf("document preview config=%+v", cfg.DocumentPreview)
 	}
 
+	t.Setenv(BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, strconv.Itoa(MaxDocumentPreviewOutputMB))
+	maximumReader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
+	maximumCfg, _, err := readConfig(maximumReader)
+	if err != nil {
+		t.Fatalf("maximum preview output must be accepted: %v", err)
+	}
+	if maximumCfg.DocumentPreview.MaxOutputMB != MaxDocumentPreviewOutputMB {
+		t.Fatalf("maxOutputMB=%d want %d", maximumCfg.DocumentPreview.MaxOutputMB, MaxDocumentPreviewOutputMB)
+	}
+
 	for _, test := range []struct {
 		name    string
 		envName string
@@ -320,6 +330,7 @@ func TestReadConfigDocumentPreviewEnvironmentAndValidation(t *testing.T) {
 		{name: "query", envName: BBSGO_DOCUMENT_CONVERTER_URL, value: "https://converter.example.com?token=secret"},
 		{name: "timeout", envName: BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS, value: strconv.Itoa(MaxDocumentConverterTimeoutSeconds + 1)},
 		{name: "output", envName: BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, value: "0"},
+		{name: "output above maximum", envName: BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB, value: strconv.Itoa(MaxDocumentPreviewOutputMB + 1)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv(BBSGO_DOCUMENT_CONVERTER_URL, "http://converter.internal:3000")

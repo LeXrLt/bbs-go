@@ -1,16 +1,20 @@
 package services
 
 import (
-	"bbs-go/internal/models/constants"
-	"bbs-go/internal/models/dto"
-	"bbs-go/internal/pkg/locales"
-	"bbs-go/internal/pkg/msg"
+	stdjson "encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 
+	"bbs-go/internal/cache"
+	"bbs-go/internal/models"
+	"bbs-go/internal/models/constants"
+	"bbs-go/internal/models/dto"
+	"bbs-go/internal/pkg/locales"
+	"bbs-go/internal/pkg/msg"
 	"bbs-go/internal/pkg/params"
+	"bbs-go/internal/repositories"
 
 	"github.com/mlogclub/simple/common/dates"
 	"github.com/mlogclub/simple/common/jsons"
@@ -19,10 +23,6 @@ import (
 	"github.com/tidwall/gjson"
 
 	"gorm.io/gorm"
-
-	"bbs-go/internal/cache"
-	"bbs-go/internal/models"
-	"bbs-go/internal/repositories"
 )
 
 var SysConfigService = newSysConfigService()
@@ -92,6 +92,11 @@ func (s *sysConfigService) SetAll(configStr string) error {
 	}
 	if scriptInjections := json.Get(constants.SysConfigScriptInjections); scriptInjections.Exists() {
 		if err := validateScriptInjections(scriptInjections.String()); err != nil {
+			return err
+		}
+	}
+	if attachmentConfig := json.Get(constants.SysConfigAttachmentConfig); attachmentConfig.Exists() {
+		if err := validateAttachmentConfig(attachmentConfig.Raw); err != nil {
 			return err
 		}
 	}
@@ -417,9 +422,12 @@ func (s *sysConfigService) GetAttachmentConfig() dto.AttachmentConfig {
 	if err := jsons.Parse(str, &cfg); err != nil {
 		slog.Warn("附件配置解析错误", slog.Any("err", err))
 	}
-	// 默认值
-	if cfg.MaxSizeMB <= 0 {
-		cfg.MaxSizeMB = 10
+	return normalizeAttachmentConfig(cfg)
+}
+
+func normalizeAttachmentConfig(cfg dto.AttachmentConfig) dto.AttachmentConfig {
+	if cfg.MaxSizeMB <= 0 || cfg.MaxSizeMB > constants.AttachmentMaxSizeMB {
+		cfg.MaxSizeMB = constants.AttachmentMaxSizeMB
 	}
 	if cfg.MaxCount <= 0 {
 		cfg.MaxCount = 5
@@ -428,6 +436,19 @@ func (s *sysConfigService) GetAttachmentConfig() dto.AttachmentConfig {
 		cfg.AllowedTypes = []string{".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".md", ".csv", ".zip", ".rar", ".7z", ".tar", ".gz"}
 	}
 	return cfg
+}
+
+func validateAttachmentConfig(raw string) error {
+	var cfg struct {
+		MaxSizeMB *int `json:"maxSizeMB"`
+	}
+	if err := stdjson.Unmarshal([]byte(raw), &cfg); err != nil {
+		return errors.New(locales.Get("settings.invalid_format"))
+	}
+	if cfg.MaxSizeMB != nil && (*cfg.MaxSizeMB < 1 || *cfg.MaxSizeMB > constants.AttachmentMaxSizeMB) {
+		return errors.New(locales.Get("settings.invalid_format"))
+	}
+	return nil
 }
 
 func (s *sysConfigService) GetSmtpConfig() dto.SmtpConfig {
