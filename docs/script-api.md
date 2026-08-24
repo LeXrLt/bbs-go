@@ -791,7 +791,7 @@ curl -sS -X POST "$BBS_BASE_URL/api/upload" \
 | --- | --- | --- |
 | PDF | `.pdf` | 校验后直接预览；仅含权限限制且可用空口令打开时生成规范化预览 |
 | Word | `.doc`、`.docx` | 上传时同步转换为 PDF |
-| Excel | `.xls`、`.xlsx` | 上传时同步转换为 PDF |
+| Excel | `.xls`、`.xlsx` | 上传时生成 PDF 兼容预览；站内页面读取原件并显示为可滚动工作簿 |
 | PowerPoint | `.ppt`、`.pptx` | 上传时同步转换为 PDF |
 
 扩展名匹配不代表文件会被信任。服务端会核对 PDF 签名、旧版 Office OLE 头，
@@ -842,8 +842,10 @@ curl -sS -X POST "$BBS_BASE_URL/api/attachment/upload" \
 
 Office 转 PDF 在上传请求内同步完成。转换服务不可用、超时、输出超过部署限制或
 输出不是有效 PDF 时，整个上传失败且不会返回附件 ID；不要发布一个未成功上传的
-占位附件。Excel 预览是静态页面，不提供公式计算或筛选交互；PowerPoint 预览不播放
-动画，字体替换和复杂排版也可能与原始 Office 客户端存在差异。
+占位附件。Excel 工作簿预览显示文件中已保存的计算结果，不会在浏览器中重新计算公式，
+也不提供编辑或筛选交互；页面保留工作表、行列、列宽、行高、合并单元格、常用数字
+格式和单元格填充色，并通过横向、纵向滚动浏览完整数据。PowerPoint 预览不播放动画，
+字体替换和复杂排版也可能与原始 Office 客户端存在差异。
 
 将一个或多个 UUID 放入创建帖子的 `attachmentIds` 数组后，服务端才会把附件绑定到
 该帖子。附件必须属于当前用户、未绑定其他帖子，且总数不能超过配置限制。
@@ -887,6 +889,17 @@ Office 附件返回的是转换后的 PDF，不会改写原件。接口支持单
 返回 `206 Partial Content`，不可满足的范围返回 `416 Range Not Satisfiable`。
 `HEAD` 返回与 `GET` 相同的关键文件头但没有响应体，适合脚本先探测大小和范围能力。
 
+Excel 站内工作簿查看器通过以下受保护接口读取原件：
+
+```http
+GET /api/attachment/preview/{attachmentId}/spreadsheet
+HEAD /api/attachment/preview/{attachmentId}/spreadsheet
+```
+
+该接口只接受 `.xls`、`.xlsx` 附件，沿用相同的帖子可见性和附件解锁校验，响应使用原始
+Excel MIME 和 `Content-Disposition: inline`，支持单段 HTTP Range，并且不会增加
+`downloadCount`。它用于站内解析，不是对象存储直链，也不能绕过附件积分授权。
+
 ```bash
 curl -fsS \
   -H "X-User-Token: $BBS_TOKEN" \
@@ -915,7 +928,7 @@ curl -fsS -OJ \
 有效帖子时，请求会失败。不要直接访问 `/res/uploads/attachments/...`、
 `/res/uploads/attachment-previews/...` 或对象存储地址，这些路径不属于公开附件契约。
 
-这两个流接口直接使用 HTTP 状态表达失败，不返回通常的业务 JSON：未登录为 `401`，
+这些流接口直接使用 HTTP 状态表达失败，不返回通常的业务 JSON：未登录为 `401`，
 无帖子查看权或尚未解锁为 `403`，附件不存在、已删除、未绑定或预览不可用为 `404`。
 
 ### 7.5 转换服务部署限制

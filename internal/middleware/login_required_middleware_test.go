@@ -42,6 +42,8 @@ func TestLoginRequiredMiddlewareUsesHTTPUnauthorizedForAttachmentStreams(t *test
 	}{
 		{method: http.MethodGet, path: "/api/attachment/preview/file-id"},
 		{method: http.MethodHead, path: "/api/attachment/preview/file-id"},
+		{method: http.MethodGet, path: "/api/attachment/preview/file-id/spreadsheet"},
+		{method: http.MethodHead, path: "/api/attachment/preview/file-id/spreadsheet"},
 		{method: http.MethodGet, path: "/api/attachment/download/file-id"},
 		{method: http.MethodHead, path: "/api/attachment/download/file-id"},
 	} {

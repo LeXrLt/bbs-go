@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"bbs-go/internal/models"
@@ -135,6 +136,31 @@ func TestAttachmentPreviewAndDownloadStreaming(t *testing.T) {
 	}
 	if got := download.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 		t.Fatalf("nosniff=%q", got)
+	}
+	assertAttachmentDownloadCount(t, attachment.Id, 1)
+	unsupportedSpreadsheet := performAttachmentObjectRequest(http.MethodGet, "/api/attachment/preview/stream-pdf/spreadsheet", "", attachment.Id, user, AttachmentSpreadsheetPreview)
+	if unsupportedSpreadsheet.Code != http.StatusNotFound {
+		t.Fatalf("PDF spreadsheet preview status=%d want %d", unsupportedSpreadsheet.Code, http.StatusNotFound)
+	}
+	assertAttachmentDownloadCount(t, attachment.Id, 1)
+
+	attachment.FileName = "数据表.xlsx"
+	attachment.FileType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	if err := repositories.AttachmentRepository.Updates(db, attachment.Id, map[string]interface{}{
+		"file_name": attachment.FileName,
+		"file_type": attachment.FileType,
+	}); err != nil {
+		t.Fatalf("update spreadsheet fixture: %v", err)
+	}
+	spreadsheet := performAttachmentObjectRequest(http.MethodGet, "/api/attachment/preview/stream-pdf/spreadsheet", "", attachment.Id, user, AttachmentSpreadsheetPreview)
+	if spreadsheet.Code != http.StatusOK || spreadsheet.Body.String() != contents {
+		t.Fatalf("spreadsheet preview status=%d body=%q", spreadsheet.Code, spreadsheet.Body.String())
+	}
+	if got := spreadsheet.Header().Get("Content-Type"); got != attachment.FileType {
+		t.Fatalf("spreadsheet content-type=%q", got)
+	}
+	if got := spreadsheet.Header().Get("Content-Disposition"); !strings.HasPrefix(got, "inline;") {
+		t.Fatalf("spreadsheet content-disposition=%q", got)
 	}
 	assertAttachmentDownloadCount(t, attachment.Id, 1)
 }

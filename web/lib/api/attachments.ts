@@ -6,6 +6,10 @@ export function attachmentPreviewPath(attachmentId: string) {
   return `/api/attachment/preview/${encodeURIComponent(attachmentId)}`
 }
 
+export function attachmentSpreadsheetPreviewPath(attachmentId: string) {
+  return `/api/attachment/preview/${encodeURIComponent(attachmentId)}/spreadsheet`
+}
+
 export function attachmentDownloadPath(attachmentId: string) {
   return `/api/attachment/download/${encodeURIComponent(attachmentId)}`
 }
@@ -29,4 +33,8 @@ export function hasAttachmentAccess(attachment: Attachment) {
   }
 
   return Boolean(attachment.downloaded || !attachment.downloadScore)
+}
+
+export function isSpreadsheetAttachment(attachment: Attachment) {
+  return /\.xlsx?$/i.test(attachment.fileName || "")
 }

@@ -15,6 +15,7 @@ import {
   compactAttachmentName,
   grantAttachmentAccess,
   hasAttachmentAccess,
+  isSpreadsheetAttachment,
 } from "@/lib/api/attachments"
 import type { Attachment, Topic } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n/provider"
@@ -24,6 +25,12 @@ import { useToastActions } from "@/lib/toast"
 const AttachmentPdfViewer = React.lazy(() =>
   import("./attachment-pdf-viewer").then((module) => ({
     default: module.AttachmentPdfViewer,
+  }))
+)
+
+const AttachmentSpreadsheetViewer = React.lazy(() =>
+  import("./attachment-spreadsheet-viewer").then((module) => ({
+    default: module.AttachmentSpreadsheetViewer,
   }))
 )
 
@@ -178,7 +185,11 @@ export function AttachmentPreviewPage({
               </div>
             }
           >
-            <AttachmentPdfViewer attachment={attachment} />
+            {isSpreadsheetAttachment(attachment) ? (
+              <AttachmentSpreadsheetViewer attachment={attachment} />
+            ) : (
+              <AttachmentPdfViewer attachment={attachment} />
+            )}
           </React.Suspense>
         ) : (
           <div className="min-h-[50dvh] border-y border-border" />

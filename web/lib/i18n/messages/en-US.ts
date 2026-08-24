@@ -1427,6 +1427,10 @@ const enUS = {
         unlocking: "Unlocking",
         loading: "Loading document",
         loadError: "The document could not be loaded. Please try again later.",
+        spreadsheetLoadError:
+          "The spreadsheet could not be loaded. Try again later or download the original file.",
+        worksheets: "Worksheets",
+        sheetDimensions: "{rows} rows x {columns} columns",
         previousPage: "Previous page",
         nextPage: "Next page",
         pageNumber: "Page number",

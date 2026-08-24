@@ -205,6 +205,8 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	attachmentGroup.HEAD("/download/:id", apiHandlers.AttachmentDownload)
 	attachmentGroup.GET("/preview/:id", apiHandlers.AttachmentPreview)
 	attachmentGroup.HEAD("/preview/:id", apiHandlers.AttachmentPreview)
+	attachmentGroup.GET("/preview/:id/spreadsheet", apiHandlers.AttachmentSpreadsheetPreview)
+	attachmentGroup.HEAD("/preview/:id/spreadsheet", apiHandlers.AttachmentSpreadsheetPreview)
 	attachmentGroup.POST("/update_download_score", apiHandlers.AttachmentUpdateDownloadScore)
 
 	linkGroup := group.Group("/link")

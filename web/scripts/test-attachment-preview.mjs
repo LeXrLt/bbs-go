@@ -20,6 +20,12 @@ const dashboardSettings = read("app/routes/dashboard.settings.tsx")
 const attachments = read("components/topic/topic-attachments.tsx")
 const previewPage = read("components/topic/attachment-preview-page.tsx")
 const pdfViewer = read("components/topic/attachment-pdf-viewer.tsx")
+const spreadsheetViewer = read(
+  "components/topic/attachment-spreadsheet-viewer.tsx"
+)
+const spreadsheetWorker = read(
+  "components/topic/attachment-spreadsheet.worker.ts"
+)
 const attachmentApi = read("lib/api/attachments.ts")
 const apiTypes = read("lib/api/types.ts")
 const ssrServer = read("scripts/serve-ssr.mjs")
@@ -78,6 +84,8 @@ assert.match(previewRoute, /await requireUser\(args\)/)
 assert.match(previewRoute, /await requireUserClient\(args\)/)
 assert.match(previewRoute, /noindexRouteMeta/)
 assert.match(previewPage, /React\.lazy/)
+assert.match(previewPage, /AttachmentSpreadsheetViewer/)
+assert.match(previewPage, /isSpreadsheetAttachment\(attachment\)/)
 assert.match(pdfViewer, /from "react-pdf"/)
 assert.match(pdfViewer, /pdf\.worker\.min\.mjs\?url/)
 assert.match(pdfViewer, /attachmentPreviewPath\(attachment\.id\)/)
@@ -87,8 +95,26 @@ assert.doesNotMatch(
   /apiFetch/,
   "PDF binary responses must not use the JSON API client"
 )
+assert.match(
+  attachmentApi,
+  /attachment\/preview\/\$\{encodeURIComponent\(attachmentId\)\}\/spreadsheet/
+)
+assert.match(attachmentApi, /\.xlsx\?\$/i)
+assert.match(spreadsheetViewer, /attachmentSpreadsheetPreviewPath/)
+assert.match(spreadsheetViewer, /new Worker\(/)
+assert.match(spreadsheetViewer, /overflow-auto/)
+assert.match(spreadsheetViewer, /role="tablist"/)
+assert.match(spreadsheetViewer, /SpreadsheetAxis/)
+assert.match(spreadsheetWorker, /dense: true/)
+assert.match(spreadsheetWorker, /cellStyles: true/)
+assert.match(spreadsheetWorker, /credentials: "include"/)
+assert.match(spreadsheetWorker, /sheet\["!merges"\]/)
 
 assert.equal(packageJson.dependencies["react-pdf"], "10.4.1")
+assert.equal(
+  packageJson.dependencies.xlsx,
+  "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+)
 assert.match(
   ssrServer,
   /file\.endsWith\("\.js"\) \|\| file\.endsWith\("\.mjs"\)/,
@@ -96,6 +122,10 @@ assert.match(
 )
 
 assert.equal(isAttachmentBinaryPath("/api/attachment/preview/file-id"), true)
+assert.equal(
+  isAttachmentBinaryPath("/api/attachment/preview/file-id/spreadsheet"),
+  true
+)
 assert.equal(isAttachmentBinaryPath("/api/attachment/download/file-id"), true)
 assert.equal(isAttachmentBinaryPath("/api/topic/file-id"), false)
 

@@ -185,20 +185,32 @@ func parseAttachmentRange(value string, size int64) (attachmentByteRange, error)
 }
 
 func AttachmentPreview(ctx *gin.Context) {
-	serveAttachmentObject(ctx, true)
+	serveAttachmentObject(ctx, attachmentObjectPDFPreview)
+}
+
+func AttachmentSpreadsheetPreview(ctx *gin.Context) {
+	serveAttachmentObject(ctx, attachmentObjectSpreadsheetPreview)
 }
 
 func AttachmentDownload(ctx *gin.Context) {
-	serveAttachmentObject(ctx, false)
+	serveAttachmentObject(ctx, attachmentObjectDownload)
 }
 
-func serveAttachmentObject(ctx *gin.Context, preview bool) {
+type attachmentObjectMode int
+
+const (
+	attachmentObjectPDFPreview attachmentObjectMode = iota
+	attachmentObjectSpreadsheetPreview
+	attachmentObjectDownload
+)
+
+func serveAttachmentObject(ctx *gin.Context, mode attachmentObjectMode) {
 	user, err := common.CheckLogin(ctx)
 	if err != nil {
 		ctx.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	object, err := services.AttachmentService.AuthorizedObject(ctx.Param("id"), user, preview)
+	object, err := services.AttachmentService.AuthorizedObject(ctx.Param("id"), user, mode == attachmentObjectPDFPreview)
 	if err != nil {
 		status := http.StatusNotFound
 		if errors.Is(err, services.ErrAttachmentAccessForbidden) {
@@ -206,6 +218,13 @@ func serveAttachmentObject(ctx *gin.Context, preview bool) {
 		}
 		ctx.AbortWithStatus(status)
 		return
+	}
+	if mode == attachmentObjectSpreadsheetPreview {
+		ext := strings.ToLower(filepath.Ext(object.Attachment.FileName))
+		if ext != ".xls" && ext != ".xlsx" {
+			ctx.AbortWithStatus(http.StatusNotFound)
+			return
+		}
 	}
 	meta, err := services.UploadService.HeadObject(ctx.Request.Context(), object.Method, object.Key)
 	if err != nil || meta.Size <= 0 {
@@ -222,10 +241,12 @@ func serveAttachmentObject(ctx *gin.Context, preview bool) {
 	filename := filepath.Base(object.Attachment.FileName)
 	contentType := object.Attachment.FileType
 	disposition := "attachment"
-	if preview {
+	if mode == attachmentObjectPDFPreview {
 		contentType = "application/pdf"
 		disposition = "inline"
 		filename = strings.TrimSuffix(filename, filepath.Ext(filename)) + ".pdf"
+	} else if mode == attachmentObjectSpreadsheetPreview {
+		disposition = "inline"
 	}
 	if strings.TrimSpace(contentType) == "" {
 		contentType = "application/octet-stream"
@@ -265,7 +286,7 @@ func serveAttachmentObject(ctx *gin.Context, preview bool) {
 		slog.Warn("stream attachment object failed", slog.String("attachmentId", object.Attachment.Id), slog.Any("err", err))
 		return
 	}
-	if !preview {
+	if mode == attachmentObjectDownload {
 		if err := services.AttachmentService.IncrementDownloadCount(object.Attachment.Id); err != nil {
 			slog.Error("increment attachment download count failed", slog.String("attachmentId", object.Attachment.Id), slog.Any("err", err))
 		}
