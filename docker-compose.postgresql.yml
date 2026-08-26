@@ -43,7 +43,7 @@ services:
       - no-new-privileges:true
     tmpfs:
       - /tmp:size=1g,mode=1777
-    cpus: 1.0
+    #cpus: 1.0
     mem_limit: 2g
     pids_limit: 256
     stop_grace_period: 30s
