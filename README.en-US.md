@@ -38,11 +38,24 @@ curl -fsSL https://raw.githubusercontent.com/mlogclub/bbs-go/master/docker-compo
 docker compose up -d
 ```
 
+When deploying the PostgreSQL Compose setup from the source repository, copy
+the environment template and adjust it for the host first:
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.postgresql.yml up -d --build
+```
+
+`BBSGO_WEB_PORT` controls the host port, while
+`BBSGO_ATTACHMENT_REVIEW_HOST_DIR` selects the host directory for attachment
+review copies.
+
 Then open:
 
-- Site: <http://localhost:3000>
-- Admin dashboard: <http://localhost:3000/dashboard>
-- Install wizard: <http://localhost:3000/install>
+- MySQL Compose default: <http://localhost:3000>
+- PostgreSQL Compose default: <http://localhost:3001>
+- The dashboard and install wizard are available at `/dashboard` and `/install`
+  on the selected port.
 
 Compose also starts an internal-only LibreOffice document converter for inline
 PDF and Office attachment previews. It exposes no host port and is limited to

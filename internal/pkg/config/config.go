@@ -23,6 +23,7 @@ const (
 	BBSGO_CALENDAR_TIMEOUT_SECONDS           = "BBSGO_CALENDAR_TIMEOUT_SECONDS"
 	BBSGO_CALENDAR_CACHE_SECONDS             = "BBSGO_CALENDAR_CACHE_SECONDS"
 	BBSGO_CALENDAR_FEED_TOKEN                = "BBSGO_CALENDAR_FEED_TOKEN"
+	BBSGO_ATTACHMENT_REVIEW_DIR              = "BBSGO_ATTACHMENT_REVIEW_DIR"
 	BBSGO_DOCUMENT_CONVERTER_URL             = "BBSGO_DOCUMENT_CONVERTER_URL"
 	BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS = "BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS"
 	BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB     = "BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB"
@@ -92,6 +93,9 @@ func init() {
 	if err := v.BindEnv("loginRequired", BBSGO_LOGIN_REQUIRED); err != nil {
 		panic(fmt.Errorf("bind %s: %w", BBSGO_LOGIN_REQUIRED, err))
 	}
+	if err := v.BindEnv("attachmentReview.dir", BBSGO_ATTACHMENT_REVIEW_DIR); err != nil {
+		panic(fmt.Errorf("bind %s: %w", BBSGO_ATTACHMENT_REVIEW_DIR, err))
+	}
 	calendarEnvBindings := map[string]string{
 		"calendar.baseUrl":        BBSGO_CALENDAR_BASE_URL,
 		"calendar.timeoutSeconds": BBSGO_CALENDAR_TIMEOUT_SECONDS,
@@ -117,19 +121,20 @@ func init() {
 }
 
 type Config struct {
-	Language        Language              `yaml:"language"`        // 语言
-	Port            int                   `yaml:"port"`            // 端口
-	IPLocator       IPLocator             `yaml:"ipLocator"`       // IP定位配置
-	AllowedOrigins  []string              `yaml:"allowedOrigins"`  // 跨域白名单
-	Installed       bool                  `yaml:"installed"`       // 是否已安装
-	LoginRequired   bool                  `yaml:"loginRequired"`   // 是否强制登录后访问站点内容
-	IDCodec         IDCodecConfig         `yaml:"idCodec"`         // ID 编解码配置
-	Logger          LoggerConfig          `yaml:"logger"`          // 日志配置
-	DB              DBConfig              `yaml:"db"`              // 数据库配置
-	Smtp            SmtpConfig            `yaml:"smtp"`            // smtp
-	Search          SearchConfig          `yaml:"search"`          // 搜索配置
-	Calendar        CalendarConfig        `yaml:"calendar"`        // 金融日历数据源
-	DocumentPreview DocumentPreviewConfig `yaml:"documentPreview"` // Office 文档预览转换
+	Language         Language               `yaml:"language"`         // 语言
+	Port             int                    `yaml:"port"`             // 端口
+	IPLocator        IPLocator              `yaml:"ipLocator"`        // IP定位配置
+	AllowedOrigins   []string               `yaml:"allowedOrigins"`   // 跨域白名单
+	Installed        bool                   `yaml:"installed"`        // 是否已安装
+	LoginRequired    bool                   `yaml:"loginRequired"`    // 是否强制登录后访问站点内容
+	IDCodec          IDCodecConfig          `yaml:"idCodec"`          // ID 编解码配置
+	Logger           LoggerConfig           `yaml:"logger"`           // 日志配置
+	DB               DBConfig               `yaml:"db"`               // 数据库配置
+	Smtp             SmtpConfig             `yaml:"smtp"`             // smtp
+	Search           SearchConfig           `yaml:"search"`           // 搜索配置
+	Calendar         CalendarConfig         `yaml:"calendar"`         // 金融日历数据源
+	AttachmentReview AttachmentReviewConfig `yaml:"attachmentReview"` // 附件检阅副本
+	DocumentPreview  DocumentPreviewConfig  `yaml:"documentPreview"`  // Office 文档预览转换
 }
 
 type IPLocator struct {
@@ -175,6 +180,10 @@ type CalendarConfig struct {
 	TimeoutSeconds int    `yaml:"timeoutSeconds"`
 	CacheSeconds   int    `yaml:"cacheSeconds"`
 	FeedToken      string `yaml:"-" json:"-" mapstructure:"-"`
+}
+
+type AttachmentReviewConfig struct {
+	Dir string `yaml:"dir"`
 }
 
 type DocumentPreviewConfig struct {
@@ -227,11 +236,27 @@ func readConfig(reader *viper.Viper) (cfg *Config, exists bool, err error) {
 	if err = readCalendarConfig(reader, &cfg.Calendar); err != nil {
 		return nil, exists, err
 	}
+	if err = readAttachmentReviewConfig(reader, &cfg.AttachmentReview); err != nil {
+		return nil, exists, err
+	}
 	if err = readDocumentPreviewConfig(reader, &cfg.DocumentPreview); err != nil {
 		return nil, exists, err
 	}
 
 	return cfg, exists, nil
+}
+
+func readAttachmentReviewConfig(reader *viper.Viper, review *AttachmentReviewConfig) error {
+	dir := strings.TrimSpace(reader.GetString("attachmentReview.dir"))
+	if dir == "" {
+		review.Dir = ""
+		return nil
+	}
+	if !filepath.IsAbs(dir) {
+		return fmt.Errorf("invalid %s: expected an absolute directory", BBSGO_ATTACHMENT_REVIEW_DIR)
+	}
+	review.Dir = filepath.Clean(dir)
+	return nil
 }
 
 func readDocumentPreviewConfig(reader *viper.Viper, preview *DocumentPreviewConfig) error {

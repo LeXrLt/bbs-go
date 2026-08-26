@@ -54,12 +54,14 @@ function formatFileSize(size?: number) {
 export function TopicAttachmentField({
   value,
   config,
+  categoryId,
   uploading,
   onUploadingChange,
   onChange,
 }: {
   value: TopicAttachment[]
   config?: SiteConfig["attachmentConfig"]
+  categoryId: number
   uploading: boolean
   onUploadingChange: (value: boolean) => void
   onChange: (value: TopicAttachment[]) => void
@@ -100,6 +102,7 @@ export function TopicAttachmentField({
       const body = new FormData()
       body.append("file", file, file.name)
       body.append("downloadScore", "0")
+      body.append("categoryId", String(categoryId))
       const attachment = await apiFetch<TopicAttachment>(
         "/api/attachment/upload",
         {

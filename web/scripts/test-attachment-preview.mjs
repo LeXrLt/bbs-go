@@ -66,6 +66,14 @@ assert.match(field, /file\.size > maxSizeMB \* 1024 \* 1024/)
 assert.match(field, /config\?\.maxSizeMB \?\? 256/)
 assert.match(field, /allowedTypes\.includes\(fileExtension\(file\.name\)\)/)
 assert.match(field, /value\.length >= maxCount/)
+assert.match(field, /body\.append\("categoryId", String\(categoryId\)\)/)
+for (const form of [createForm, editForm]) {
+  assert.match(
+    form,
+    /categoryId=\{effectiveCategoryId\}/,
+    "topic forms must classify attachment review copies using the selected category"
+  )
+}
 assert.match(dashboardSettings, /attachment\.maxSizeMB \|\| 256/)
 assert.match(dashboardSettings, /max=\{256\}/)
 

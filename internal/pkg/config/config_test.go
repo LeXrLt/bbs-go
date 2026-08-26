@@ -81,6 +81,29 @@ func TestReadConfigRejectsInvalidLoginRequiredEnvironment(t *testing.T) {
 	}
 }
 
+func TestReadConfigAttachmentReviewDirectory(t *testing.T) {
+	t.Setenv(BBSGO_ATTACHMENT_REVIEW_DIR, " /var/lib/bbs-go/../attachment-review ")
+	reader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
+
+	cfg, _, err := readConfig(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AttachmentReview.Dir != "/var/lib/attachment-review" {
+		t.Fatalf("attachment review directory = %q", cfg.AttachmentReview.Dir)
+	}
+}
+
+func TestReadConfigRejectsRelativeAttachmentReviewDirectory(t *testing.T) {
+	t.Setenv(BBSGO_ATTACHMENT_REVIEW_DIR, "relative/review")
+	reader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
+
+	_, _, err := readConfig(reader)
+	if err == nil || !strings.Contains(err.Error(), BBSGO_ATTACHMENT_REVIEW_DIR) {
+		t.Fatalf("expected an invalid %s error, got %v", BBSGO_ATTACHMENT_REVIEW_DIR, err)
+	}
+}
+
 func TestReadConfigCalendarDefaults(t *testing.T) {
 	t.Setenv(BBSGO_CALENDAR_FEED_TOKEN, "")
 	reader := newTestConfigReader(t, filepath.Join(t.TempDir(), "missing.yaml"))
@@ -360,6 +383,9 @@ func newTestConfigReader(t *testing.T, configPath string) *viper.Viper {
 	reader.SetDefault("documentPreview.timeoutSeconds", DefaultDocumentConverterTimeoutSeconds)
 	reader.SetDefault("documentPreview.maxOutputMB", DefaultDocumentPreviewMaxOutputMB)
 	if err := reader.BindEnv("loginRequired", BBSGO_LOGIN_REQUIRED); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.BindEnv("attachmentReview.dir", BBSGO_ATTACHMENT_REVIEW_DIR); err != nil {
 		t.Fatal(err)
 	}
 	for key, envName := range map[string]string{

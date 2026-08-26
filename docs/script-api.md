@@ -815,8 +815,16 @@ X-User-Token: <token>
 curl -sS -X POST "$BBS_BASE_URL/api/attachment/upload" \
   -H "X-User-Token: $BBS_TOKEN" \
   -F 'file=@/path/to/document.pdf' \
+  -F 'categoryId=123' \
   -F 'downloadScore=0'
 ```
+
+`categoryId` 是上传时选择的普通帖子节点 ID。部署配置了
+`BBSGO_ATTACHMENT_REVIEW_DIR` 时该字段必填；服务端会重新校验节点及其父节点，不能用
+客户端传入的节点名称代替。原件会按“一级节点/二级节点/原文件名”写入独立的检阅目录；
+同名文件按 `文件名_1.ext`、`文件名_2.ext` 依次编号且不会覆盖已有文件。该副本不参与附件
+下载、帖子编辑或删除流程，写入失败只记录服务端错误，且帖子改分类、删除附件或删除帖子时
+不会移动或删除已有副本。
 
 `downloadScore` 小于 `0` 时按 `0` 处理；`0` 表示免费访问，正整数表示其他用户
 需要先支付的积分。成功响应中的 `data` 是附件元数据，不包含对象存储直链：
@@ -938,6 +946,9 @@ curl -fsS -OJ \
 
 | 环境变量 | Compose 默认值 | 约束与用途 |
 | --- | --- | --- |
+| `BBSGO_WEB_PORT` | `3001` | PostgreSQL Compose 对外暴露的 Web 端口 |
+| `BBSGO_ATTACHMENT_REVIEW_HOST_DIR` | `/home/lele/Documents/uploads` | PostgreSQL Compose 挂载的宿主机附件检阅目录；建议使用绝对路径 |
+| `BBSGO_ATTACHMENT_REVIEW_DIR` | `/app/attachment-review` | 附件检阅副本目录；必须为绝对路径，不提供 HTTP 访问，空值表示关闭 |
 | `BBSGO_DOCUMENT_CONVERTER_URL` | `http://document-converter:3000` | Gotenberg 根 URL；只允许路径为空或 `/` 且不含凭据、查询和片段的绝对 HTTP(S) URL |
 | `BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS` | `300` | 单次转换超时，范围 `1..300` 秒 |
 | `BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB` | `256` | 转换后 PDF 最大体积，范围 `1..256` MB |

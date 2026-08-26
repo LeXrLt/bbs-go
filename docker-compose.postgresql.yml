@@ -71,14 +71,16 @@ services:
       - ./docker-data-postgresql/data:/app/data
       - ./docker-data-postgresql/logs:/app/logs
       - ./docker-data-postgresql/uploads:/app/res/uploads
+      - "${BBSGO_ATTACHMENT_REVIEW_HOST_DIR:-/home/lele/Documents/uploads}:/app/attachment-review"
     ports:
-      - "3001:3000"
+      - "${BBSGO_WEB_PORT:-3001}:3000"
     environment:
       BBSGO_ENV: prod
       NODE_ENV: production
       PORT: 3000
       BBSGO_SERVER_URL: http://127.0.0.1:8082
       BBSGO_LOGIN_REQUIRED: "${BBSGO_LOGIN_REQUIRED:-true}"
+      BBSGO_ATTACHMENT_REVIEW_DIR: /app/attachment-review
       BBSGO_DOCUMENT_CONVERTER_URL: http://document-converter:3000
       BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS: "${BBSGO_DOCUMENT_CONVERTER_TIMEOUT_SECONDS:-300}"
       BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB: "${BBSGO_DOCUMENT_PREVIEW_MAX_OUTPUT_MB:-256}"

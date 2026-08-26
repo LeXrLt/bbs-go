@@ -5,6 +5,7 @@ import (
 	"bbs-go/internal/models"
 	"bbs-go/internal/models/constants"
 	modelreq "bbs-go/internal/models/req"
+	"bbs-go/internal/pkg/attachmentreview"
 	"bbs-go/internal/pkg/config"
 	"bbs-go/internal/pkg/idcodec"
 	"bbs-go/internal/pkg/iplocator"
@@ -262,6 +263,9 @@ func InitConfig() {
 		panic(err)
 	}
 	config.Instance = cfg
+	if err := attachmentreview.EnsureRoot(cfg.AttachmentReview.Dir); err != nil {
+		slog.Error("initialize attachment review directory", slog.Any("err", err))
+	}
 	ApplyDockerBuiltinMySQLConfig()
 	ApplyDockerBuiltinPostgreSQLConfig()
 }

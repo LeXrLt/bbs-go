@@ -177,6 +177,7 @@ export function TopicEditForm({
           <TopicAttachmentField
             value={attachmentList}
             config={config.attachmentConfig}
+            categoryId={effectiveCategoryId}
             uploading={attachmentUploading}
             onUploadingChange={setAttachmentUploading}
             onChange={setAttachmentList}

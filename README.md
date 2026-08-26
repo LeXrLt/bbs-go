@@ -36,11 +36,21 @@ curl -fsSL https://raw.githubusercontent.com/mlogclub/bbs-go/master/docker-compo
 docker compose up -d
 ```
 
+从源码仓库部署 PostgreSQL Compose 时，先复制环境变量示例并按实际设备修改：
+
+```bash
+cp .env.example .env
+docker compose -f docker-compose.postgresql.yml up -d --build
+```
+
+`.env` 中的 `BBSGO_WEB_PORT` 控制宿主机访问端口，
+`BBSGO_ATTACHMENT_REVIEW_HOST_DIR` 配置附件检阅副本的宿主机目录。
+
 启动后访问：
 
-- 前台：<http://localhost:3000>
-- 后台：<http://localhost:3000/dashboard>
-- 安装向导：<http://localhost:3000/install>
+- MySQL Compose 默认端口：<http://localhost:3000>
+- PostgreSQL Compose 默认端口：<http://localhost:3001>
+- 后台和安装向导分别位于对应端口的 `/dashboard`、`/install`
 
 Compose 会同时启动仅内部网络可见的 LibreOffice 文档转换服务，用于 PDF 和 Office
 附件在线预览；该容器不开放宿主机端口，并限制为 1 CPU、2 GiB 内存。

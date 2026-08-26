@@ -22,6 +22,7 @@ import (
 	"bbs-go/internal/models"
 	"bbs-go/internal/models/constants"
 	"bbs-go/internal/models/dto"
+	"bbs-go/internal/pkg/attachmentreview"
 	"bbs-go/internal/pkg/config"
 	"bbs-go/internal/pkg/docpreview"
 	"bbs-go/internal/pkg/locales"
@@ -70,7 +71,7 @@ func (s *attachmentService) extAllowed(ext string, allowedTypes []string) bool {
 
 // Upload validates a spooled upload, generates its preview, and only persists
 // the attachment after every required object has been stored successfully.
-func (s *attachmentService) Upload(ctx context.Context, userId int64, filename, sourcePath string, contentLength int64, downloadScore int) (*models.Attachment, error) {
+func (s *attachmentService) Upload(ctx context.Context, userId int64, filename, sourcePath string, contentLength int64, downloadScore int, categoryId int64) (*models.Attachment, error) {
 	if downloadScore < 0 {
 		downloadScore = 0
 	}
@@ -82,6 +83,10 @@ func (s *attachmentService) Upload(ctx context.Context, userId int64, filename, 
 		if character < 0x20 || character == 0x7f {
 			return nil, errors.New(locales.Get("attachment.invalid_document"))
 		}
+	}
+	reviewCategories, err := s.reviewCategories(categoryId)
+	if err != nil {
+		return nil, err
 	}
 	stat, err := os.Stat(sourcePath)
 	if err != nil || !stat.Mode().IsRegular() || stat.Size() <= 0 || stat.Size() != contentLength {
@@ -272,7 +277,44 @@ func (s *attachmentService) Upload(ctx context.Context, userId int64, filename, 
 		s.cleanupAttachmentObjects(storageMethod, key, previewKey)
 		return nil, err
 	}
+	if len(reviewCategories) > 0 {
+		if _, err := attachmentreview.Write(config.Instance.AttachmentReview.Dir, reviewCategories, att.Id, att.FileName, sourcePath); err != nil {
+			slog.Error("write attachment review copy", slog.String("attachmentId", att.Id), slog.Int64("categoryId", categoryId), slog.Any("err", err))
+		}
+	}
 	return att, nil
+}
+
+func (s *attachmentService) reviewCategories(categoryId int64) ([]attachmentreview.Category, error) {
+	if config.Instance == nil || strings.TrimSpace(config.Instance.AttachmentReview.Dir) == "" {
+		return nil, nil
+	}
+	if categoryId <= 0 {
+		return nil, errors.New(locales.Get("topic.category_required"))
+	}
+	category := repositories.CategoryRepository.Get(sqls.DB(), categoryId)
+	if category == nil || category.Status != constants.StatusOk {
+		return nil, errors.New(locales.Get("topic.category_not_found"))
+	}
+	if !category.Type.Supports(constants.TopicTypeTopic) {
+		return nil, errors.New(locales.Get("topic.category_type_mismatch"))
+	}
+
+	path := []attachmentreview.Category{{ID: category.Id, Name: category.Name}}
+	if category.ParentId == 0 {
+		return path, nil
+	}
+	parent := repositories.CategoryRepository.Get(sqls.DB(), category.ParentId)
+	if parent == nil || parent.Status != constants.StatusOk || parent.ParentId != 0 {
+		return nil, errors.New(locales.Get("topic.category_not_found"))
+	}
+	if !parent.Type.Supports(constants.TopicTypeTopic) {
+		return nil, errors.New(locales.Get("topic.category_type_mismatch"))
+	}
+	return []attachmentreview.Category{
+		{ID: parent.Id, Name: parent.Name},
+		{ID: category.Id, Name: category.Name},
+	}, nil
 }
 
 func isPreviewDocumentExtension(ext string) bool {

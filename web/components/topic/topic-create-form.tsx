@@ -883,6 +883,7 @@ export function TopicCreateForm({
             <TopicAttachmentField
               value={attachmentList}
               config={config.attachmentConfig}
+              categoryId={effectiveCategoryId}
               uploading={attachmentUploading}
               onUploadingChange={setAttachmentUploading}
               onChange={setAttachmentList}

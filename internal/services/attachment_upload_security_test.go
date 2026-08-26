@@ -14,6 +14,7 @@ import (
 	"bbs-go/internal/models"
 	"bbs-go/internal/models/constants"
 	"bbs-go/internal/models/dto"
+	"bbs-go/internal/pkg/config"
 	"bbs-go/internal/pkg/locales"
 	"bbs-go/internal/pkg/uploader"
 	"bbs-go/internal/repositories"
@@ -57,6 +58,7 @@ func TestAttachmentUploadRejectsMacroExtensionEvenWhenAllowlisted(t *testing.T) 
 		sourcePath,
 		int64(len(payload)),
 		0,
+		0,
 	)
 	if err == nil || err.Error() != locales.Get("attachment.invalid_document") {
 		t.Fatalf("macro-enabled upload error = %v", err)
@@ -86,7 +88,7 @@ func TestAttachmentUploadCreatesPreviewForPDFWithEmptyUserPassword(t *testing.T)
 	if err := os.WriteFile(sourcePath, encryptedPDF, 0o600); err != nil {
 		t.Fatalf("write encrypted PDF: %v", err)
 	}
-	attachment, err := AttachmentService.Upload(context.Background(), 1, "restricted.pdf", sourcePath, int64(len(encryptedPDF)), 0)
+	attachment, err := AttachmentService.Upload(context.Background(), 1, "restricted.pdf", sourcePath, int64(len(encryptedPDF)), 0, 0)
 	if err != nil {
 		t.Fatalf("Upload() error = %v", err)
 	}
@@ -100,6 +102,77 @@ func TestAttachmentUploadCreatesPreviewForPDFWithEmptyUserPassword(t *testing.T)
 	method := dto.UploadMethod(attachment.StorageMethod)
 	assertStoredAttachmentBytes(t, method, attachment.FileKey, encryptedPDF)
 	assertStoredAttachmentBytes(t, method, attachment.PreviewKey, plainPDF)
+}
+
+func TestAttachmentUploadWritesReviewCopyByCategory(t *testing.T) {
+	t.Chdir(t.TempDir())
+	setupAttachmentServiceTestDB(t)
+	configureAttachmentUploadTypes(t, []string{".txt"})
+	if err := sqls.DB().AutoMigrate(&models.Category{}); err != nil {
+		t.Fatalf("auto migrate categories: %v", err)
+	}
+	root := &models.Category{Name: "研究/报告", Type: constants.CategoryTypeNormal, Status: constants.StatusOk}
+	if err := repositories.CategoryRepository.Create(sqls.DB(), root); err != nil {
+		t.Fatalf("create root category: %v", err)
+	}
+	child := &models.Category{ParentId: root.Id, Name: "季度材料", Type: constants.CategoryTypeNormal, Status: constants.StatusOk}
+	if err := repositories.CategoryRepository.Create(sqls.DB(), child); err != nil {
+		t.Fatalf("create child category: %v", err)
+	}
+	reviewDir := t.TempDir()
+	config.Instance.AttachmentReview.Dir = reviewDir
+	contents := []byte("review source bytes")
+	sourcePath := filepath.Join(t.TempDir(), "source.txt")
+	if err := os.WriteFile(sourcePath, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := AttachmentService.Upload(context.Background(), 1, "原始文件.txt", sourcePath, int64(len(contents)), 0, child.Id)
+	if err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+	reviewPath := filepath.Join(
+		reviewDir,
+		fmt.Sprintf("%d-研究_报告", root.Id),
+		fmt.Sprintf("%d-季度材料", child.Id),
+		"原始文件.txt",
+	)
+	got, err := os.ReadFile(reviewPath)
+	if err != nil {
+		t.Fatalf("read review copy: %v", err)
+	}
+	if !bytes.Equal(got, contents) {
+		t.Fatalf("review copy = %q, want %q", got, contents)
+	}
+}
+
+func TestAttachmentUploadReviewFailureDoesNotFailPrimaryUpload(t *testing.T) {
+	t.Chdir(t.TempDir())
+	setupAttachmentServiceTestDB(t)
+	configureAttachmentUploadTypes(t, []string{".txt"})
+	if err := sqls.DB().AutoMigrate(&models.Category{}); err != nil {
+		t.Fatalf("auto migrate categories: %v", err)
+	}
+	category := &models.Category{Name: "Reports", Type: constants.CategoryTypeNormal, Status: constants.StatusOk}
+	if err := repositories.CategoryRepository.Create(sqls.DB(), category); err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	blockedPath := filepath.Join(t.TempDir(), "regular-file")
+	if err := os.WriteFile(blockedPath, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	config.Instance.AttachmentReview.Dir = blockedPath
+	contents := []byte("primary upload survives")
+	sourcePath := filepath.Join(t.TempDir(), "source.txt")
+	if err := os.WriteFile(sourcePath, contents, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	attachment, err := AttachmentService.Upload(context.Background(), 1, "report.txt", sourcePath, int64(len(contents)), 0, category.Id)
+	if err != nil {
+		t.Fatalf("Upload() must remain successful when the review copy fails: %v", err)
+	}
+	assertStoredAttachmentBytes(t, dto.UploadMethod(attachment.StorageMethod), attachment.FileKey, contents)
 }
 
 func configureAttachmentUploadTypes(t *testing.T, allowedTypes []string) {

@@ -14,9 +14,10 @@
 ## 架构与运行
 
 - 后端使用 Go/Gin，前端使用 React Router，开发部署使用 PostgreSQL Compose。
-- `docker-compose.postgresql.yml` 对外 Web 端口为 `3001`，容器内 Web 端口为 `3000`，Go API 端口为 `8082`。
+- `docker-compose.postgresql.yml` 对外 Web 端口由 `BBSGO_WEB_PORT` 配置，默认 `3001`；容器内 Web 端口为 `3000`，Go API 端口为 `8082`。
 - 启动命令：`docker compose -f docker-compose.postgresql.yml up -d --build`。
 - 持久化目录：`docker-data-postgresql/{data,logs,uploads}`。
+- 附件检阅副本挂载：宿主机目录由 `BBSGO_ATTACHMENT_REVIEW_HOST_DIR` 配置，默认 `/home/lele/Documents/uploads`；容器内为 `/app/attachment-review`。
 
 ## 产品与安全约束
 

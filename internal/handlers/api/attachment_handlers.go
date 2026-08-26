@@ -99,7 +99,8 @@ func AttachmentUpload(ctx *gin.Context) {
 	}
 
 	downloadScore, _ := params.GetInt(ctx, "downloadScore")
-	att, err := services.AttachmentService.Upload(ctx.Request.Context(), user.Id, header.Filename, tempPath, size, downloadScore)
+	categoryId, _ := params.GetInt64(ctx, "categoryId")
+	att, err := services.AttachmentService.Upload(ctx.Request.Context(), user.Id, header.Filename, tempPath, size, downloadScore, categoryId)
 	if err != nil {
 		ginx.WriteJSON(ctx, err)
 		return
