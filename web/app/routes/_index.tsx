@@ -2,7 +2,6 @@ import { useLoaderData } from "react-router"
 
 import { EmptyState } from "@/components/common/empty-state"
 import { LoadMore } from "@/components/common/load-more"
-import { HomeAside } from "@/components/layout/home-aside"
 import { MainShell } from "@/components/layout/main-shell"
 import { TopicFeedTabs } from "@/components/topic/topic-feed-tabs"
 import { TopicListItem } from "@/components/topic/topic-list-item"
@@ -42,7 +41,7 @@ export function TopicListRoute({ title }: { title?: string }) {
   useDocumentTitle(title)
 
   return (
-    <MainShell aside={<HomeAside />}>
+    <MainShell>
       <div className="topics-wrapper">
         <TopicsNavContent
           initialCategories={categories}
