@@ -19,7 +19,7 @@ assert.equal(findDailyReportCategory([{ id: 5, name: "Other" }]), null)
 assert.equal(findDailyReportCategory([]), null)
 assert.deepEqual(parseDailyReportFilters(new URLSearchParams()), {
   userIds: [],
-  sort: "latestPublish",
+  sort: "latestEdit",
 })
 assert.deepEqual(
   parseDailyReportFilters(
@@ -29,8 +29,14 @@ assert.deepEqual(
 )
 assert.deepEqual(parseDailyReportFilters(new URLSearchParams("sort=invalid")), {
   userIds: [],
-  sort: "latestPublish",
+  sort: "latestEdit",
 })
+for (const sort of ["latestEdit", "latestPublish"]) {
+  assert.deepEqual(parseDailyReportFilters(new URLSearchParams({ sort })), {
+    userIds: [],
+    sort: "latestEdit",
+  })
+}
 
 const selected = dailyReportSearchParams(
   new URLSearchParams("cursor=stale&keep=yes"),

@@ -36,7 +36,7 @@ export type DailyReportRouteData = TopicListRouteData & {
 }
 
 const qaStatusOptions = ["", "unsolved", "solved"]
-const sortOptions = ["latestPublish", "latestReply"]
+const sortOptions = ["latestEdit", "latestReply"]
 
 export function resolveCategoryId(id?: string) {
   if (id === "newest") return 0
@@ -91,7 +91,7 @@ async function getCategoryFilters({
     return { qaStatus: filters.qaStatus }
   }
   if (category) {
-    return { sort: filters.sort || "latestPublish" }
+    return { sort: filters.sort || "latestEdit" }
   }
   return {}
 }

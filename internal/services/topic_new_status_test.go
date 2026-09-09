@@ -302,6 +302,9 @@ func TestTopicPublishService_PublishVisibleTopicCreatesEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("publish topic: %v", err)
 	}
+	if saved := TopicService.Get(topic.Id); saved.EditTime == 0 || saved.EditTime != saved.CreateTime || topic.EditTime != saved.EditTime {
+		t.Fatalf("published topic must use its publication time as edit time: %#v", saved)
+	}
 	var eventCount int64
 	if err := db.Model(&models.TopicVisibleEvent{}).Where("topic_id = ?", topic.Id).Count(&eventCount).Error; err != nil {
 		t.Fatalf("count publish visible events: %v", err)

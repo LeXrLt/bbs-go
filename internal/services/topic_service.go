@@ -234,6 +234,7 @@ func (s *topicService) Edit(userId, topicId int64, form req.EditTopicReq) error 
 			"title":        form.Title,
 			"content":      form.Content,
 			"hide_content": hideContent,
+			"edit_time":    dates.NowTimestamp(),
 		}); err != nil {
 			return err
 		}
@@ -260,6 +261,10 @@ func (s *topicService) Edit(userId, topicId int64, form req.EditTopicReq) error 
 		}
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
 
 	// 添加索引
 	search.UpdateTopicIndex(s.Get(topicId))
@@ -375,11 +380,16 @@ func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, q
 		cnd.Eq("qa_status", qaStatus)
 	}
 	applyTopicRoleNameFilter(cnd, roleName)
-	if sort == "latestPublish" {
+	// latestPublish remains an alias for existing links and API clients.
+	if sort != "latestReply" {
 		if cursor > 0 {
-			cnd.Lt("id", cursor)
+			anchor := s.Get(cursor)
+			if anchor == nil {
+				return nil, cursor, false
+			}
+			cnd.Where("(edit_time < ? OR (edit_time = ? AND id < ?))", anchor.EditTime, anchor.EditTime, cursor)
 		}
-		cnd.Eq("status", constants.StatusOk).Desc("id").Limit(limit)
+		cnd.Eq("status", constants.StatusOk).Desc("edit_time").Desc("id").Limit(limit)
 	} else {
 		if cursor > 0 {
 			cnd.Lt("last_comment_time", cursor)
@@ -388,7 +398,7 @@ func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, q
 	}
 	topics = repositories.TopicRepository.Find(sqls.DB(), cnd)
 	if len(topics) > 0 {
-		if sort == "latestPublish" {
+		if sort != "latestReply" {
 			nextCursor = topics[len(topics)-1].Id
 		} else {
 			nextCursor = topics[len(topics)-1].LastCommentTime

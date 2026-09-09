@@ -257,6 +257,7 @@ type Topic struct {
 	Ip                string                `gorm:"size:128" json:"ip" form:"ip"`                                                                                                              // IP
 	IpLocation        string                `gorm:"size:64" json:"ipLocation" form:"ipLocation"`                                                                                               // IP属地
 	CreateTime        int64                 `gorm:"index:idx_topic_create_time" json:"createTime" form:"createTime"`                                                                           // 创建时间
+	EditTime          int64                 `gorm:"not null;default:0;index:idx_topic_edit_time" json:"editTime" form:"editTime"`                                                              // 最后编辑时间，首次发布时等于创建时间
 	ExtraData         string                `gorm:"type:text" json:"extraData" form:"extraData"`                                                                                               // 扩展数据
 }
 

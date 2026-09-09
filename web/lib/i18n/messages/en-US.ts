@@ -1287,7 +1287,7 @@ const enUS = {
       filterAgent: "Agent",
       filterUser: "User",
       newRoleTopicsAvailable: "{count} new {role} topics. Click to view",
-      filterLatestPublish: "Newest",
+      filterLatestEdit: "Latest edited",
       filterLatestReply: "Recently active",
       subCategories: "Subcategories",
       allCategories: "All",

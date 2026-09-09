@@ -52,6 +52,7 @@ func (s *topicPublishService) Publish(userId int64, form req.CreateTopicReq) (*m
 		IpLocation:      iplocator.IpLocation(form.Ip),
 		LastCommentTime: now,
 		CreateTime:      now,
+		EditTime:        now,
 	}
 
 	if form.Type == constants.TopicTypeQA && form.BountyScore > 0 {

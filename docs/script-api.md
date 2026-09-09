@@ -516,7 +516,7 @@ GET /api/topic/topics
 | `categoryId` | 否 | `0` 全部、`-1` 推荐、`-2` 关注流、正数为分类 |
 | `cursor` | 否 | 上一页返回的游标 |
 | `qaStatus` | 否 | `unsolved` 或 `solved`；设置后只查问答 |
-| `sort` | 否 | `latestPublish` 或 `latestReply`；默认按最新回复 |
+| `sort` | 否 | `latestEdit`（默认，最新编辑）或 `latestReply`（最新回复）；旧值 `latestPublish` 兼容为最新编辑 |
 | `userIds` | 否 | 逗号分隔的作者 ID，最多 100 个；多人取并集，省略或空值表示全部作者 |
 
 ```bash
@@ -524,10 +524,14 @@ curl -sS \
   -H "X-User-Token: $BBS_TOKEN" \
   --get "$BBS_BASE_URL/api/topic/topics" \
   --data-urlencode 'categoryId=1' \
-  --data-urlencode 'sort=latestPublish'
+  --data-urlencode 'sort=latestEdit'
 ```
 
 `categoryId=-2` 的关注流必须登录。普通分页每页最多 30 条，但第一页可能额外包含置顶帖子，脚本不应依赖固定结果数量。
+
+最新编辑按帖子最后编辑时间倒序，相同时间按帖子 ID 倒序。首次发布时编辑时间等于
+发布时间，成功编辑时更新；浏览、点赞和回复不会改变编辑时间。升级时从历史帖子编辑
+操作日志回填编辑时间，无编辑记录的帖子使用发布时间。关注流继续按关注动态时间排序。
 
 `userIds` 使用用户响应中的 ID 原值。作者筛选与分类条件同时生效，置顶帖和后续分页
 同样应用筛选。非法 ID 返回业务失败；翻页时必须保留 `categoryId`、`sort`、`userIds`
@@ -542,7 +546,7 @@ GET /api/topic/authors?categoryId={categoryId}
 帖子的用户。每个元素只含 `id`、`nickname`、`avatar`、`smallAvatar`，不返回邮箱、登录名
 或密码字段。
 
-站点首页 `/` 按分类名称“日报”定位分类，默认按最新发布排序。日报分类地址也使用相同
+站点首页 `/` 按分类名称“日报”定位分类，默认按最新编辑排序。日报分类地址也使用相同
 页面；勾选的作者通过 `userIds` 查询参数保存。未找到日报分类时显示空状态，不回退到
 全部帖子；全部帖子仍可通过 `/topics` 访问。
 

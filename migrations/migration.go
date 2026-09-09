@@ -118,4 +118,5 @@ func init() {
 	register(17, "backfill topic visible events", migrate_topic_visible_events)
 	register(18, "add calendar to site navigation", migrate_add_calendar_site_nav)
 	register(19, "raise legacy attachment upload limit to 256 MB", migrate_attachment_max_size)
+	register(20, "backfill topic edit time", migrate_topic_edit_time)
 }

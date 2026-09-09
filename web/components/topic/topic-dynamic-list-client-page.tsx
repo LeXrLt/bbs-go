@@ -32,7 +32,7 @@ function resolveCategoryId(id: string) {
 }
 
 const qaStatusOptions = ["", "unsolved", "solved"]
-const sortOptions = ["latestPublish", "latestReply"]
+const sortOptions = ["latestEdit", "latestReply"]
 
 type TopicListInitialData = {
   topics?: PageData<Topic>
@@ -147,7 +147,7 @@ export function NodeTopicClientPage({
   const sortValue = searchParams.get("sort") || ""
   const normalSort = sortOptions.includes(sortValue)
     ? sortValue
-    : "latestPublish"
+    : "latestEdit"
   const roleName =
     categoryId === 0
       ? normalizeTopicRoleName(searchParams.get(TOPIC_ROLE_NAME_PARAM))
@@ -161,8 +161,8 @@ export function NodeTopicClientPage({
     : isNormalNode
       ? [
           {
-            value: "latestPublish",
-            label: t("pages.topics.filterLatestPublish"),
+            value: "latestEdit",
+            label: t("pages.topics.filterLatestEdit"),
           },
           {
             value: "latestReply",

@@ -45,7 +45,7 @@ func TestTopicAuthorFiltersApplyBeforePaginationAndToStickyTopics(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	for _, sort := range []string{"latestPublish", "latestReply"} {
+	for _, sort := range []string{"", "latestEdit", "latestPublish", "latestReply"} {
 		seen := map[int64]bool{}
 		cursor := int64(0)
 		for page := 0; page < 4; page++ {

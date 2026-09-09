@@ -26,7 +26,7 @@ export function parseDailyReportFilters(searchParams: URLSearchParams) {
     ),
   ].sort()
   const sort =
-    searchParams.get("sort") === "latestReply" ? "latestReply" : "latestPublish"
+    searchParams.get("sort") === "latestReply" ? "latestReply" : "latestEdit"
   return { userIds, sort }
 }
 

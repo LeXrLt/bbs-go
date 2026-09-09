@@ -162,8 +162,8 @@ export function DailyReportPage({ data }: { data: DailyReportRouteData }) {
                     }))
                   }
                 >
-                  <option value="latestPublish">
-                    {t("pages.topics.filterLatestPublish")}
+                  <option value="latestEdit">
+                    {t("pages.topics.filterLatestEdit")}
                   </option>
                   <option value="latestReply">
                     {t("pages.topics.filterLatestReply")}

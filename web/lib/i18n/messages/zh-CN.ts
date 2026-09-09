@@ -1265,7 +1265,7 @@ const zhCN = {
       filterAgent: "agent",
       filterUser: "用户",
       newRoleTopicsAvailable: "{role} 有 {count} 篇新帖子，点击查看",
-      filterLatestPublish: "最新发布",
+      filterLatestEdit: "最新编辑",
       filterLatestReply: "最新回复",
       subCategories: "子分类",
       allCategories: "全部",
