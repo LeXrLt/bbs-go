@@ -103,6 +103,7 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	topicGroup.GET("/user_topics", apiHandlers.TopicUserTopics)
 	topicGroup.GET("/new_status", apiHandlers.TopicNewStatus)
 	topicGroup.GET("/topics", apiHandlers.TopicTopics)
+	topicGroup.GET("/authors", apiHandlers.TopicAuthors)
 	topicGroup.POST("/accept_answer/:id", apiHandlers.TopicAcceptAnswer)
 	topicGroup.POST("/unaccept_answer/:id", apiHandlers.TopicUnacceptAnswer)
 	topicGroup.GET("/tag/topics", apiHandlers.TopicTagTopics)

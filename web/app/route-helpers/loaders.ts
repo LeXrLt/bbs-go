@@ -1,7 +1,19 @@
 import { redirect } from "react-router"
 
 import { apiFetch } from "@/lib/api/client"
-import type { Article, PageData, Tag, Topic, Category } from "@/lib/api/types"
+import type {
+  Article,
+  PageData,
+  Tag,
+  Topic,
+  Category,
+  UserSummary,
+} from "@/lib/api/types"
+import {
+  DAILY_REPORT_CATEGORY_NAME,
+  findDailyReportCategory,
+  parseDailyReportFilters,
+} from "@/lib/daily-reports"
 import {
   normalizeTopicRoleName,
   TOPIC_ROLE_NAME_PARAM,
@@ -16,6 +28,11 @@ export type TopicListRouteData = {
   category?: Category | null
   tag?: Tag | null
   roleName?: TopicRoleName | ""
+}
+
+export type DailyReportRouteData = TopicListRouteData & {
+  authors: UserSummary[]
+  filters: ReturnType<typeof parseDailyReportFilters>
 }
 
 const qaStatusOptions = ["", "unsolved", "solved"]
@@ -93,11 +110,13 @@ export async function loadTopics(params: {
   qaStatus?: string
   sort?: string
   roleName?: TopicRoleName | ""
+  userIds?: string[]
 }) {
   const path = params.tagId ? "/api/topic/tag/topics" : "/api/topic/topics"
 
   return apiFetch<PageData<Topic>>(path, {
     request: params.request,
+    signal: params.request?.signal,
     params: {
       cursor: params.cursor || "",
       categoryId: params.categoryId,
@@ -105,6 +124,7 @@ export async function loadTopics(params: {
       qaStatus: params.qaStatus,
       sort: params.sort,
       roleName: params.roleName,
+      userIds: params.userIds?.join(","),
     },
   })
 }
@@ -124,6 +144,41 @@ export async function loadTopicListRouteData(
   return { topics, categories, roleName }
 }
 
+export async function loadDailyReportRouteData(
+  request?: Request,
+  initialCategory?: Category
+): Promise<DailyReportRouteData> {
+  const filters = parseDailyReportFilters(
+    new URL(request?.url || "http://local").searchParams
+  )
+  const category =
+    initialCategory ||
+    findDailyReportCategory(
+      await apiFetch<Category[]>("/api/topic/categories", {
+        request,
+        signal: request?.signal,
+      })
+    )
+  if (!category) {
+    return {
+      category: null,
+      categories: [],
+      authors: [],
+      filters,
+      topics: { results: [], cursor: "", hasMore: false },
+    }
+  }
+  const [topics, authors] = await Promise.all([
+    loadTopics({ request, categoryId: category.id, ...filters }),
+    apiFetch<UserSummary[]>("/api/topic/authors", {
+      request,
+      signal: request?.signal,
+      params: { categoryId: category.id },
+    }),
+  ])
+  return { category, categories: [], topics, authors, filters }
+}
+
 export async function loadCategoryRouteData({
   request,
   id,
@@ -139,6 +194,10 @@ export async function loadCategoryRouteData({
   }
 
   const categoryId = resolveCategoryId(id)
+  const category = await loadCategory(request, categoryId)
+  if (category?.name === DAILY_REPORT_CATEGORY_NAME) {
+    return loadDailyReportRouteData(request, category)
+  }
   const roleName =
     categoryId === 0
       ? normalizeTopicRoleName(
@@ -148,10 +207,9 @@ export async function loadCategoryRouteData({
         )
       : ""
   const filters = await getCategoryFilters({ request, categoryId })
-  const [topics, categories, category] = await Promise.all([
+  const [topics, categories] = await Promise.all([
     loadTopics({ request, categoryId, roleName, ...filters }),
     loadCategories(request),
-    loadCategory(request, categoryId),
   ])
   return { topics, categories, category, roleName }
 }
@@ -180,7 +238,10 @@ export async function loader({
 }) {
   const pathname = new URL(request.url).pathname
 
-  if (pathname === "/" || pathname === "/topics") {
+  if (pathname === "/") {
+    return loadDailyReportRouteData(request)
+  }
+  if (pathname === "/topics") {
     return loadTopicListRouteData(request)
   }
   if (pathname.startsWith("/topics/category/")) {

@@ -1,12 +1,14 @@
 import { redirect, useLoaderData } from "react-router"
 
 import { NodeTopicClientPage } from "@/components/topic/topic-dynamic-list-client-page"
+import { DailyReportPage } from "@/components/topic/daily-report-page"
 import { rootDataFromMatches, categoryMeta } from "@/lib/seo"
 
 import { getCurrentUser } from "../route-helpers/auth"
 import {
   loadCategoryRouteData,
   type TopicListRouteData,
+  type DailyReportRouteData,
 } from "../route-helpers/loaders"
 
 export { loader } from "../route-helpers/loaders"
@@ -45,5 +47,8 @@ export function meta({
 
 export default function CategoryRoute() {
   const data = useLoaderData() as TopicListRouteData
+  if ("authors" in data && "filters" in data) {
+    return <DailyReportPage data={data as DailyReportRouteData} />
+  }
   return <NodeTopicClientPage initialData={data} />
 }

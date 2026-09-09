@@ -389,6 +389,11 @@ func TopicNewStatus(ctx *gin.Context) {
 }
 
 func TopicTopics(ctx *gin.Context) {
+	userIds, err := parseTopicUserIds(params.FormValue(ctx, "userIds"))
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
 	var (
 		cursor     = params.FormValueInt64Default(ctx, "cursor", 0)
 		categoryId = params.FormValueInt64Default(ctx, "categoryId", 0)
@@ -407,10 +412,10 @@ func TopicTopics(ctx *gin.Context) {
 
 	var temp []models.Topic
 	if cursor <= 0 {
-		stickyTopics := services.TopicService.GetStickyTopics(categoryId, 3, qaStatus, roleName)
+		stickyTopics := services.TopicService.GetStickyTopics(categoryId, 3, qaStatus, roleName, userIds...)
 		temp = append(temp, stickyTopics...)
 	}
-	topics, cursor, hasMore := services.TopicService.GetTopics(user, categoryId, cursor, qaStatus, sort, roleName)
+	topics, cursor, hasMore := services.TopicService.GetTopics(user, categoryId, cursor, qaStatus, sort, roleName, userIds...)
 	for _, topic := range topics {
 		topic.Sticky = false // 正常列表不要渲染置顶
 		temp = append(temp, topic)

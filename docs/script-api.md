@@ -18,6 +18,7 @@
 | 创建帖子 | `POST` | `/api/topic/create` | 是 |
 | 获取帖子详情 | `GET` | `/api/topic/{topicId}` | 按站点配置 |
 | 获取帖子列表 | `GET` | `/api/topic/topics` | 按站点配置 |
+| 获取分类作者 | `GET` | `/api/topic/authors` | 是 |
 | 获取/提交帖子编辑数据 | `GET` / `POST` | `/api/topic/edit/{topicId}` | 是 |
 | 删除帖子 | `POST` | `/api/topic/delete/{topicId}` | 是 |
 | 上传正文或评论图片 | `POST` | `/api/upload` | 是 |
@@ -516,6 +517,7 @@ GET /api/topic/topics
 | `cursor` | 否 | 上一页返回的游标 |
 | `qaStatus` | 否 | `unsolved` 或 `solved`；设置后只查问答 |
 | `sort` | 否 | `latestPublish` 或 `latestReply`；默认按最新回复 |
+| `userIds` | 否 | 逗号分隔的作者 ID，最多 100 个；多人取并集，省略或空值表示全部作者 |
 
 ```bash
 curl -sS \
@@ -526,6 +528,23 @@ curl -sS \
 ```
 
 `categoryId=-2` 的关注流必须登录。普通分页每页最多 30 条，但第一页可能额外包含置顶帖子，脚本不应依赖固定结果数量。
+
+`userIds` 使用用户响应中的 ID 原值。作者筛选与分类条件同时生效，置顶帖和后续分页
+同样应用筛选。非法 ID 返回业务失败；翻页时必须保留 `categoryId`、`sort`、`userIds`
+等筛选参数，切换筛选条件后清空 `cursor`。
+
+```http
+GET /api/topic/authors?categoryId={categoryId}
+```
+
+此接口必须登录，且 `categoryId` 必须为有效、未删除的分类。返回该分类及其有效子分类
+中发过正常可见帖子的正常状态用户，按昵称、ID 排序并去重；不包含仅有待审核或已删除
+帖子的用户。每个元素只含 `id`、`nickname`、`avatar`、`smallAvatar`，不返回邮箱、登录名
+或密码字段。
+
+站点首页 `/` 按分类名称“日报”定位分类，默认按最新发布排序。日报分类地址也使用相同
+页面；勾选的作者通过 `userIds` 查询参数保存。未找到日报分类时显示空状态，不回退到
+全部帖子；全部帖子仍可通过 `/topics` 访问。
 
 ### 5.4 编辑帖子
 

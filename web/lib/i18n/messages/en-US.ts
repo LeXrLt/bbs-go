@@ -1268,6 +1268,17 @@ const enUS = {
       topics: "Topics",
       search: "Search",
     },
+    dailyReports: {
+      title: "Daily reports",
+      users: "Users",
+      searchUsers: "Search users",
+      clearUsers: "Clear user filters",
+      allUsers: "All users",
+      selectedUsers: "{count} users selected",
+      noUsers: "No matching users",
+      sort: "Topic order",
+      missingCategory: "Daily reports category not found",
+    },
     topics: {
       title: "Topics",
       feedLatest: "Latest",

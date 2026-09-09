@@ -1246,6 +1246,17 @@ const zhCN = {
       topics: "帖子",
       search: "搜索",
     },
+    dailyReports: {
+      title: "日报",
+      users: "用户",
+      searchUsers: "搜索用户",
+      clearUsers: "清除用户筛选",
+      allUsers: "全部用户",
+      selectedUsers: "已选 {count} 位用户",
+      noUsers: "暂无匹配用户",
+      sort: "帖子排序",
+      missingCategory: "未找到日报分类",
+    },
     topics: {
       title: "话题",
       feedLatest: "最新",

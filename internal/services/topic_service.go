@@ -341,21 +341,24 @@ func applyTopicRoleNameFilter(cnd *sqls.Cnd, roleName string) {
 }
 
 // GetTopics 帖子列表（最新、推荐、关注、节点）
-func (s *topicService) GetTopics(user *models.User, categoryId, cursor int64, qaStatus, sort, roleName string) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) GetTopics(user *models.User, categoryId, cursor int64, qaStatus, sort, roleName string, userIds ...int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	limit := constants.TopicListPageSize
 	if categoryId == constants.CategoryIdFollow {
 		if user != nil {
-			return s._GetFollowTopics(user.Id, cursor)
+			return s._GetFollowTopics(user.Id, cursor, userIds...)
 		}
 		return
 	} else {
-		return s._GetCategoryTopics(categoryId, cursor, limit, qaStatus, sort, roleName)
+		return s._GetCategoryTopics(categoryId, cursor, limit, qaStatus, sort, roleName, userIds...)
 	}
 }
 
 // _GetCategoryTopics 帖子列表（最新、推荐、节点）
-func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, qaStatus, sort, roleName string) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, qaStatus, sort, roleName string, userIds ...int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	cnd := sqls.NewCnd()
+	if len(userIds) > 0 {
+		cnd.In("user_id", userIds)
+	}
 	if categoryId > 0 {
 		categoryIds := CategoryService.GetCategoryIdsForList(categoryId)
 		if len(categoryIds) > 0 {
@@ -398,10 +401,13 @@ func (s *topicService) _GetCategoryTopics(categoryId, cursor int64, limit int, q
 }
 
 // _GetFollowTopics 关注帖子列表
-func (s *topicService) _GetFollowTopics(userId int64, cursor int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
+func (s *topicService) _GetFollowTopics(userId int64, cursor int64, userIds ...int64) (topics []models.Topic, nextCursor int64, hasMore bool) {
 	limit := constants.TopicListPageSize
 	cnd := sqls.NewCnd().Eq("user_id", userId)
 	cnd.Eq("data_type", constants.EntityTopic)
+	if len(userIds) > 0 {
+		cnd.Where("data_id IN (?)", sqls.DB().Model(&models.Topic{}).Select("id").Where("user_id IN ?", userIds))
+	}
 	if cursor > 0 {
 		cnd.Lt("create_time", cursor)
 	}
@@ -576,8 +582,11 @@ func (s *topicService) GetUserTopics(userId, cursor int64) (topics []models.Topi
 	return
 }
 
-func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus, roleName string) []models.Topic {
+func (s *topicService) GetStickyTopics(categoryId int64, limit int, qaStatus, roleName string, userIds ...int64) []models.Topic {
 	cnd := sqls.NewCnd().Eq("sticky", true).Eq("status", constants.StatusOk).Desc("sticky_time").Limit(limit)
+	if len(userIds) > 0 {
+		cnd.In("user_id", userIds)
+	}
 	if categoryId > 0 {
 		categoryIds := CategoryService.GetCategoryIdsForList(categoryId)
 		if len(categoryIds) > 0 {
