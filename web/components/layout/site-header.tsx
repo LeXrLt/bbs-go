@@ -11,15 +11,11 @@ import {
   Bell,
   BellRing,
   ChevronDown,
-  CircleHelp,
-  FileText,
   Heart,
   LayoutDashboard,
   ListChecks,
   LogOut,
   Menu,
-  MessageCircle,
-  MessageSquare,
   Plus,
   Settings,
   User,
@@ -88,85 +84,26 @@ function signinHref(fullPath: string) {
   return `/user/signin?redirect=${encodeURIComponent(redirect)}`
 }
 
-function moduleItems(config: SiteConfig | null, t: TFunction) {
-  const enabledModules = config?.modules
-  const items: Array<{
-    command: string
-    name: string
-    href: string
-    icon: React.ComponentType<{ className?: string }>
-  }> = []
-
-  if (enabledModules?.tweet) {
-    items.push({
-      command: "tweet",
-      name: t("common.createBtn.tweet"),
-      href: "/topic/create?type=1",
-      icon: MessageCircle,
-    })
-  }
-  if (enabledModules?.topic) {
-    items.push({
-      command: "topic",
-      name: t("common.createBtn.topic"),
-      href: "/topic/create",
-      icon: MessageSquare,
-    })
-  }
-  if (enabledModules?.qa) {
-    items.push({
-      command: "qa",
-      name: t("common.createBtn.qa"),
-      href: "/topic/create?type=2",
-      icon: CircleHelp,
-    })
-  }
-  if (enabledModules?.article) {
-    items.push({
-      command: "article",
-      name: t("common.createBtn.article"),
-      href: "/article/create",
-      icon: FileText,
-    })
-  }
-
-  return items
-}
-
 function CreateTopicButton({
   config,
   t,
   className,
+  onClick,
 }: {
   config: SiteConfig | null
   t: TFunction
   className?: string
+  onClick?: () => void
 }) {
-  const items = moduleItems(config, t)
-  if (!items.length) return null
+  if (!config?.modules?.topic) return null
 
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button className={cn("h-8", className)}>
-          <Plus />
-          {t("common.createBtn.create")}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {items.map((item) => {
-          const Icon = item.icon
-          return (
-            <DropdownMenuItem key={item.command} asChild>
-              <Link href={item.href}>
-                <Icon className="h-4 w-4" />
-                <span>{item.name}</span>
-              </Link>
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Button className={cn("h-8", className)} asChild>
+      <Link href="/topic/create" onClick={onClick}>
+        <Plus />
+        {t("common.createBtn.create")}
+      </Link>
+    </Button>
   )
 }
 
@@ -503,7 +440,11 @@ function MobileMenu({
           </div>
 
           <div className="px-3">
-            <CreateTopicButton config={config} t={t} />
+            <CreateTopicButton
+              config={config}
+              t={t}
+              onClick={closeMobileMenu}
+            />
           </div>
 
           {user ? (
