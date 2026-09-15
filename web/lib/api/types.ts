@@ -155,6 +155,7 @@ export interface Topic {
   status?: number
   vote?: TopicVote | null
   acceptedCommentId?: number
+  unread?: boolean
 }
 
 export interface TopicHideContent {

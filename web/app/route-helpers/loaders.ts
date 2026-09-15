@@ -28,6 +28,7 @@ export type TopicListRouteData = {
   category?: Category | null
   tag?: Tag | null
   roleName?: TopicRoleName | ""
+  roleAfter?: string
 }
 
 export type DailyReportRouteData = TopicListRouteData & {
@@ -110,6 +111,7 @@ export async function loadTopics(params: {
   qaStatus?: string
   sort?: string
   roleName?: TopicRoleName | ""
+  roleAfter?: string | number
   userIds?: string[]
 }) {
   const path = params.tagId ? "/api/topic/tag/topics" : "/api/topic/topics"
@@ -124,6 +126,7 @@ export async function loadTopics(params: {
       qaStatus: params.qaStatus,
       sort: params.sort,
       roleName: params.roleName,
+      roleAfter: params.roleAfter,
       userIds: params.userIds?.join(","),
     },
   })
@@ -137,11 +140,15 @@ export async function loadTopicListRouteData(
         new URL(request.url).searchParams.get(TOPIC_ROLE_NAME_PARAM)
       )
     : ""
+  const roleAfter = roleName
+    ? new URL(request?.url || "http://local").searchParams.get("roleAfter") ||
+      ""
+    : ""
   const [topics, categories] = await Promise.all([
-    loadTopics({ request, roleName }),
+    loadTopics({ request, roleName, roleAfter }),
     loadCategories(request),
   ])
-  return { topics, categories, roleName }
+  return { topics, categories, roleName, roleAfter }
 }
 
 export async function loadDailyReportRouteData(
@@ -206,12 +213,16 @@ export async function loadCategoryRouteData({
           )
         )
       : ""
+  const roleAfter = roleName
+    ? new URL(request?.url || "http://local").searchParams.get("roleAfter") ||
+      ""
+    : ""
   const filters = await getCategoryFilters({ request, categoryId })
   const [topics, categories] = await Promise.all([
-    loadTopics({ request, categoryId, roleName, ...filters }),
+    loadTopics({ request, categoryId, roleName, roleAfter, ...filters }),
     loadCategories(request),
   ])
-  return { topics, categories, category, roleName }
+  return { topics, categories, category, roleName, roleAfter }
 }
 
 export async function loadTopicTagRouteData({

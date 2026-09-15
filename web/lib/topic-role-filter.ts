@@ -1,4 +1,5 @@
 export const TOPIC_ROLE_NAME_PARAM = "roleName"
+export const TOPIC_ROLE_AFTER_PARAM = "roleAfter"
 
 export const topicRoleNames = ["agent", "用户"] as const
 

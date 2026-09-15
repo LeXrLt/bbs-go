@@ -400,6 +400,7 @@ func TopicTopics(ctx *gin.Context) {
 		qaStatus   = strings.TrimSpace(params.FormValue(ctx, "qaStatus"))
 		sort       = strings.TrimSpace(params.FormValue(ctx, "sort"))
 		roleName   = services.NormalizeTopicRoleName(params.FormValue(ctx, "roleName"))
+		roleAfter  = params.FormValueInt64Default(ctx, "roleAfter", -1)
 		user       = common.GetCurrentUser(ctx)
 	)
 	if categoryId == constants.CategoryIdFollow && user == nil {
@@ -408,6 +409,9 @@ func TopicTopics(ctx *gin.Context) {
 	}
 	if categoryId != constants.CategoryIdNewest {
 		roleName = ""
+		roleAfter = -1
+	} else if roleName == "" {
+		roleAfter = -1
 	}
 
 	var temp []models.Topic
@@ -423,7 +427,7 @@ func TopicTopics(ctx *gin.Context) {
 	list := common.Distinct(temp, func(t models.Topic) any {
 		return t.Id
 	})
-	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopics(ctx, list), strconv.FormatInt(cursor, 10), hasMore))
+	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopicsWithUnread(ctx, list, roleAfter), strconv.FormatInt(cursor, 10), hasMore))
 
 }
 

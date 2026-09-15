@@ -38,6 +38,7 @@ export function TopicListRoute({ title }: { title?: string }) {
     topics,
     categories,
     roleName = "",
+    roleAfter = "",
   } = useLoaderData() as TopicListRouteData
   const { t } = useI18n()
   useDocumentTitle(title)
@@ -58,14 +59,19 @@ export function TopicListRoute({ title }: { title?: string }) {
               initialHasMore={topics.hasMore}
               initialLoad={false}
               autoLoadOnScroll
-              resetKey={`/api/topic/topics:${roleName}`}
+              resetKey={`/api/topic/topics:${roleName}:${roleAfter}`}
               labels={{
                 loadMore: t("common.loadMore.loadMore"),
                 noMore: t("common.loadMore.noMore"),
               }}
               loadPage={({ cursor }) =>
                 apiFetch<PageData<Topic>>("/api/topic/topics", {
-                  params: { cursor, roleName },
+                  // The base request remains params: { cursor, roleName }; roleAfter is optional.
+                  params: {
+                    cursor,
+                    roleName,
+                    ...(roleAfter ? { roleAfter } : {}),
+                  },
                 })
               }
               renderItems={(items) => (

@@ -20,6 +20,7 @@ import { useDocumentTitle } from "@/lib/use-document-title"
 import {
   normalizeTopicRoleName,
   TOPIC_ROLE_NAME_PARAM,
+  TOPIC_ROLE_AFTER_PARAM,
 } from "@/lib/topic-role-filter"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +38,7 @@ const sortOptions = ["latestEdit", "latestReply"]
 type TopicListInitialData = {
   topics?: PageData<Topic>
   categories?: Category[]
+  roleAfter?: string
 }
 
 export function TopicTagClientPage({
@@ -145,12 +147,14 @@ export function NodeTopicClientPage({
   const qaStatusValue = searchParams.get("qaStatus") || ""
   const qaStatus = qaStatusOptions.includes(qaStatusValue) ? qaStatusValue : ""
   const sortValue = searchParams.get("sort") || ""
-  const normalSort = sortOptions.includes(sortValue)
-    ? sortValue
-    : "latestEdit"
+  const normalSort = sortOptions.includes(sortValue) ? sortValue : "latestEdit"
   const roleName =
     categoryId === 0
       ? normalizeTopicRoleName(searchParams.get(TOPIC_ROLE_NAME_PARAM))
+      : ""
+  const roleAfter =
+    categoryId === 0
+      ? searchParams.get(TOPIC_ROLE_AFTER_PARAM) || initialData?.roleAfter || ""
       : ""
   const currentFilters = isQaNode
     ? [
@@ -273,7 +277,7 @@ export function NodeTopicClientPage({
               initialHasMore={initialData?.topics?.hasMore || false}
               initialLoad={!initialData?.topics}
               autoLoadOnScroll
-              resetKey={`category:${categoryId}:${currentNode?.type || ""}:${currentFilterValue}:${roleName}`}
+              resetKey={`category:${categoryId}:${currentNode?.type || ""}:${currentFilterValue}:${roleName}:${roleAfter}`}
               labels={labels}
               loadPage={({ cursor }) =>
                 apiFetch<PageData<Topic>>("/api/topic/topics", {
@@ -283,6 +287,7 @@ export function NodeTopicClientPage({
                     ...(isQaNode && qaStatus ? { qaStatus } : {}),
                     ...(isNormalNode ? { sort: normalSort } : {}),
                     ...(roleName ? { roleName } : {}),
+                    ...(roleName && roleAfter ? { roleAfter } : {}),
                   },
                 })
               }

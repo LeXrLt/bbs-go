@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api/client"
 import type { NewTopicStatus } from "@/lib/api/types"
 import {
   normalizeTopicRoleName,
+  TOPIC_ROLE_AFTER_PARAM,
   TOPIC_ROLE_NAME_PARAM,
   topicRoleNames,
   type TopicRoleName,
@@ -198,6 +199,7 @@ export function useRoleNewTopicNotices(userId?: string) {
 
   const openRoleTopics = React.useCallback(
     (roleName: TopicRoleName) => {
+      const seenMarker = seenMarkersRef.current[roleName]
       const marker = latestMarkersRef.current[roleName]
       if (marker) {
         persistMarker(roleName, marker)
@@ -207,14 +209,24 @@ export function useRoleNewTopicNotices(userId?: string) {
         counts: { ...current.counts, [roleName]: 0 },
       }))
 
-      const target = `${NEWEST_TOPICS_PATH}?${TOPIC_ROLE_NAME_PARAM}=${encodeURIComponent(roleName)}`
-      if (pathname === NEWEST_TOPICS_PATH && currentRoleName === roleName) {
+      const targetParams = new URLSearchParams({
+        [TOPIC_ROLE_NAME_PARAM]: roleName,
+      })
+      if (seenMarker) {
+        targetParams.set(TOPIC_ROLE_AFTER_PARAM, seenMarker)
+      }
+      const target = `${NEWEST_TOPICS_PATH}?${targetParams.toString()}`
+      if (
+        pathname === NEWEST_TOPICS_PATH &&
+        currentRoleName === roleName &&
+        (searchParams.get(TOPIC_ROLE_AFTER_PARAM) || "") === seenMarker
+      ) {
         router.refresh()
       } else {
         router.push(target)
       }
     },
-    [currentRoleName, pathname, persistMarker, router, userId]
+    [currentRoleName, pathname, persistMarker, router, searchParams, userId]
   )
 
   return {

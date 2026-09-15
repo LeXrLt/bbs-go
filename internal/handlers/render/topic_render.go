@@ -9,12 +9,14 @@ import (
 	"bbs-go/internal/pkg/idcodec"
 	"bbs-go/internal/pkg/markdown"
 	"bbs-go/internal/pkg/text"
+	"bbs-go/internal/repositories"
 	"bbs-go/internal/services"
 	"html"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mlogclub/simple/common/arrays"
 	"github.com/mlogclub/simple/common/strs"
+	"github.com/mlogclub/simple/sqls"
 )
 
 const (
@@ -103,29 +105,51 @@ func buildSimpleTopicSummary(topic *models.Topic) string {
 }
 
 func BuildSimpleTopics(ctx *gin.Context, topics []models.Topic) []resp.TopicResponse {
+	return buildSimpleTopics(ctx, topics, -1)
+}
+
+func BuildSimpleTopicsWithUnread(ctx *gin.Context, topics []models.Topic, unreadAfter int64) []resp.TopicResponse {
+	return buildSimpleTopics(ctx, topics, unreadAfter)
+}
+
+func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int64) []resp.TopicResponse {
 	if len(topics) == 0 {
 		return nil
 	}
 
 	var likedTopicIds []int64
-	if currentUser := common.GetCurrentUser(ctx); currentUser != nil {
+	currentUser := common.GetCurrentUser(ctx)
+	if currentUser != nil {
 		var topicIds []int64
 		for _, topic := range topics {
 			topicIds = append(topicIds, topic.Id)
 		}
 		likedTopicIds = services.UserLikeService.IsLiked(currentUser.Id, constants.EntityTopic, topicIds)
 	}
+	var visibleEventIDs map[int64]int64
+	if unreadAfter >= 0 && currentUser != nil {
+		visibleEventIDs = repositories.TopicVisibleEventRepository.GetLatestIDs(sqls.DB(), topicIDs(topics))
+	}
 
 	var responses []resp.TopicResponse
 	for _, topic := range topics {
 		item := BuildSimpleTopic(&topic)
 		item.Liked = arrays.Contains(topic.Id, likedTopicIds)
+		item.Unread = unreadAfter >= 0 && currentUser != nil && currentUser.Id != topic.UserId && visibleEventIDs[topic.Id] > unreadAfter
 		if vote := services.VoteService.Get(topic.VoteId); vote != nil {
 			item.Vote = BuildVote(ctx, vote)
 		}
 		responses = append(responses, *item)
 	}
 	return responses
+}
+
+func topicIDs(topics []models.Topic) []int64 {
+	ids := make([]int64, 0, len(topics))
+	for _, topic := range topics {
+		ids = append(ids, topic.Id)
+	}
+	return ids
 }
 
 func _buildTopic(topic *models.Topic, buildContent bool) *resp.TopicResponse {

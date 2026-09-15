@@ -17,8 +17,34 @@ func newTopicVisibleEventRepository() *topicVisibleEventRepository {
 
 type topicVisibleEventRepository struct{}
 
+type topicVisibleEventTopicID struct {
+	TopicID int64 `gorm:"column:topic_id"`
+	EventID int64 `gorm:"column:event_id"`
+}
+
 func (r *topicVisibleEventRepository) Create(db *gorm.DB, visibleEvent *models.TopicVisibleEvent) error {
 	return db.Create(visibleEvent).Error
+}
+
+func (r *topicVisibleEventRepository) GetLatestIDs(db *gorm.DB, topicIDs []int64) map[int64]int64 {
+	if len(topicIDs) == 0 {
+		return nil
+	}
+
+	var rows []topicVisibleEventTopicID
+	if err := db.Model(&models.TopicVisibleEvent{}).
+		Select("topic_id, MAX(id) AS event_id").
+		Where("topic_id IN ?", topicIDs).
+		Group("topic_id").
+		Find(&rows).Error; err != nil {
+		return nil
+	}
+
+	result := make(map[int64]int64, len(rows))
+	for _, row := range rows {
+		result[row.TopicID] = row.EventID
+	}
+	return result
 }
 
 func (r *topicVisibleEventRepository) GetRoleStatus(db *gorm.DB, userId int64, roleName string, after int64) (marker, count int64, err error) {

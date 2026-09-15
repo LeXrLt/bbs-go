@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   CheckCircle2,
   CircleHelp,
@@ -12,10 +13,13 @@ import Link from "@/components/common/link"
 import { useAppConfig } from "@/components/app/app-provider"
 import { UserAvatar } from "@/components/common/avatar"
 import { TopicLikeButton } from "@/components/topic/topic-like-button"
+import { TopicContent } from "@/components/topic/topic-content"
 import { TopicVoteCard } from "@/components/topic/topic-vote-card"
+import { apiFetch } from "@/lib/api/client"
 import type { Topic } from "@/lib/api/types"
 import { prettyDate } from "@/lib/format"
 import type { TFunction } from "@/lib/i18n"
+import { useToastActions } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
 type TopicListVariant = "default" | "compact"
@@ -35,6 +39,36 @@ function formatCompactTopicViewCount(viewCount?: number) {
     return "0"
   }
   return viewCount > 9999 ? "9999+" : String(viewCount)
+}
+
+function stripPreviewEllipsis(value: string) {
+  return value.replace(/\s*(?:\.\.\.|…)\s*$/, "")
+}
+
+function ExpandPreviewButton({
+  expanded,
+  loading,
+  onClick,
+  t,
+}: {
+  expanded: boolean
+  loading: boolean
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void
+  t: TFunction
+}) {
+  return (
+    <button
+      type="button"
+      className="ml-1 inline-flex min-h-6 items-center text-sm text-primary underline-offset-4 hover:underline"
+      aria-expanded={expanded}
+      disabled={loading}
+      onClick={onClick}
+    >
+      {expanded
+        ? t("component.topicList.collapse")
+        : t("component.topicList.expandAll")}
+    </button>
+  )
 }
 
 function TopicContentMarks({ topic, t }: { topic: Topic; t: TFunction }) {
@@ -93,6 +127,35 @@ export function TopicListItem({
     topic.user.nickname || topic.user.username || topic.user.id
   const topicHref = `/topic/${topic.id}`
   const imageSizeClass = getTopicImageSizeClass(topic.imageList?.length || 0)
+  const [expandedTopic, setExpandedTopic] = React.useState<Topic | null>(null)
+  const [expanding, setExpanding] = React.useState(false)
+  const { msgError } = useToastActions()
+
+  async function toggleExpanded(event?: React.MouseEvent<HTMLButtonElement>) {
+    event?.preventDefault()
+    event?.stopPropagation()
+    if (expandedTopic) {
+      setExpandedTopic(null)
+      return
+    }
+
+    if (topic.content && topic.type === 1) {
+      setExpandedTopic(topic)
+      return
+    }
+
+    setExpanding(true)
+    try {
+      const fullTopic = await apiFetch<Topic>(`/api/topic/${topic.id}`)
+      setExpandedTopic(fullTopic)
+    } catch {
+      msgError(t("component.topicList.expandError"))
+    } finally {
+      setExpanding(false)
+    }
+  }
+
+  const previewText = topic.summary ? stripPreviewEllipsis(topic.summary) : ""
 
   if (resolvedVariant === "compact") {
     const compactTitle =
@@ -105,7 +168,7 @@ export function TopicListItem({
         : ""
 
     return (
-      <li className="px-3 py-3 sm:px-4">
+      <li className={cn("px-3 py-3 sm:px-4", topic.unread && "bg-accent/45")}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <UserAvatar
@@ -194,7 +257,7 @@ export function TopicListItem({
   }
 
   return (
-    <li className="px-4 py-3">
+    <li className={cn("px-4 py-3", topic.unread && "bg-accent/45")}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <UserAvatar user={topic.user} size={24} className="shrink-0" />
@@ -256,32 +319,72 @@ export function TopicListItem({
               {topic.title}
             </Link>
             {topic.summary ? (
-              <Link
-                href={topicHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  "block text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:text-sm sm:leading-normal",
-                  topic.type === 0 ? "whitespace-pre-line" : "line-clamp-3"
-                )}
-              >
-                {topic.summary}
-              </Link>
+              expandedTopic ? (
+                <>
+                  <TopicContent topic={expandedTopic} />
+                  <ExpandPreviewButton
+                    expanded
+                    loading={expanding}
+                    onClick={toggleExpanded}
+                    t={t}
+                  />
+                </>
+              ) : (
+                <div>
+                  <Link
+                    href={topicHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "inline text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:text-sm sm:leading-normal",
+                      topic.type === 0 ? "whitespace-pre-line" : "line-clamp-3"
+                    )}
+                  >
+                    {previewText}
+                  </Link>
+                  <ExpandPreviewButton
+                    expanded={false}
+                    loading={expanding}
+                    onClick={toggleExpanded}
+                    t={t}
+                  />
+                </div>
+              )
             ) : null}
           </>
         ) : (
           <>
             {topic.content ? (
-              <Link
-                href={topicHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="line-clamp-3 block text-[15px] leading-6 break-all whitespace-pre-line text-foreground sm:text-sm sm:leading-normal"
-              >
-                {topic.content}
-              </Link>
+              expandedTopic ? (
+                <>
+                  <TopicContent topic={expandedTopic} />
+                  <ExpandPreviewButton
+                    expanded
+                    loading={expanding}
+                    onClick={toggleExpanded}
+                    t={t}
+                  />
+                </>
+              ) : (
+                <div>
+                  <Link
+                    href={topicHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="line-clamp-3 inline text-[15px] leading-6 break-all whitespace-pre-line text-foreground sm:text-sm sm:leading-normal"
+                  >
+                    {topic.content}
+                  </Link>
+                  <ExpandPreviewButton
+                    expanded={false}
+                    loading={expanding}
+                    onClick={toggleExpanded}
+                    t={t}
+                  />
+                </div>
+              )
             ) : null}
-            {topic.imageList?.length ? (
+            {!expandedTopic && topic.imageList?.length ? (
               <ul className="mt-1 flex flex-wrap gap-2">
                 {topic.imageList.slice(0, 9).map((image, index) => (
                   <li
