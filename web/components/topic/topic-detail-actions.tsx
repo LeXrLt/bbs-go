@@ -6,6 +6,9 @@ import { useTopicActions } from "@/components/topic/topic-action-context"
 import type { Topic } from "@/lib/api/types"
 import { cn } from "@/lib/utils"
 
+// Keep the like and favorite actions available for a possible future restoration.
+const SHOW_TOPIC_DETAIL_LIKE_AND_FAVORITE_ACTIONS = false
+
 function countLabel(value?: number) {
   return value && value > 0 ? `(${value})` : ""
 }
@@ -41,25 +44,27 @@ export function TopicDetailActions({
           <span>{countLabel(topic.viewCount)}</span>
         </div>
       </div>
-      <button
-        type="button"
-        className="group flex flex-1 items-center justify-center text-sm text-muted-foreground hover:text-primary"
-        onClick={() => void toggleLike("detail")}
-      >
-        <Heart
-          className={cn(
-            "size-[18px] stroke-2 transition-all duration-200 group-hover:text-primary",
-            liked
-              ? "text-destructive group-hover:text-destructive"
-              : "text-muted-foreground"
-          )}
-          fill={liked ? "currentColor" : "none"}
-        />
-        <div className="ml-[5px] text-foreground">
-          <span>{labels.like}</span>
-          <span>{countLabel(likeCount)}</span>
-        </div>
-      </button>
+      {SHOW_TOPIC_DETAIL_LIKE_AND_FAVORITE_ACTIONS ? (
+        <button
+          type="button"
+          className="group flex flex-1 items-center justify-center text-sm text-muted-foreground hover:text-primary"
+          onClick={() => void toggleLike("detail")}
+        >
+          <Heart
+            className={cn(
+              "size-[18px] stroke-2 transition-all duration-200 group-hover:text-primary",
+              liked
+                ? "text-destructive group-hover:text-destructive"
+                : "text-muted-foreground"
+            )}
+            fill={liked ? "currentColor" : "none"}
+          />
+          <div className="ml-[5px] text-foreground">
+            <span>{labels.like}</span>
+            <span>{countLabel(likeCount)}</span>
+          </div>
+        </button>
+      ) : null}
       <button
         type="button"
         className="group flex flex-1 items-center justify-center text-sm text-muted-foreground hover:text-primary"
@@ -71,24 +76,26 @@ export function TopicDetailActions({
           <span>{countLabel(commentCount)}</span>
         </div>
       </button>
-      <button
-        type="button"
-        className="group flex flex-1 items-center justify-center text-sm text-muted-foreground hover:text-primary"
-        onClick={() => void toggleFavorite("detail")}
-      >
-        <Star
-          className={cn(
-            "size-[18px] stroke-2 transition-all duration-200 group-hover:text-primary",
-            favorited
-              ? "text-destructive group-hover:text-destructive"
-              : "text-muted-foreground"
-          )}
-          fill={favorited ? "currentColor" : "none"}
-        />
-        <div className="ml-[5px] text-foreground">
-          <span>{labels.favorite}</span>
-        </div>
-      </button>
+      {SHOW_TOPIC_DETAIL_LIKE_AND_FAVORITE_ACTIONS ? (
+        <button
+          type="button"
+          className="group flex flex-1 items-center justify-center text-sm text-muted-foreground hover:text-primary"
+          onClick={() => void toggleFavorite("detail")}
+        >
+          <Star
+            className={cn(
+              "size-[18px] stroke-2 transition-all duration-200 group-hover:text-primary",
+              favorited
+                ? "text-destructive group-hover:text-destructive"
+                : "text-muted-foreground"
+            )}
+            fill={favorited ? "currentColor" : "none"}
+          />
+          <div className="ml-[5px] text-foreground">
+            <span>{labels.favorite}</span>
+          </div>
+        </button>
+      ) : null}
     </div>
   )
 }

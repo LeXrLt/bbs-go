@@ -24,6 +24,9 @@ import { cn } from "@/lib/utils"
 
 type TopicListVariant = "default" | "compact"
 
+// Keep the quick-like action available for a possible future restoration.
+const SHOW_TOPIC_LIST_QUICK_LIKE = false
+
 function getTopicImageSizeClass(count: number) {
   if (count <= 1) {
     return "h-[160px] w-[160px] sm:h-[210px] sm:w-[210px]"
@@ -436,11 +439,13 @@ export function TopicListItem({
           ) : null}
         </div>
         <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
-          <TopicLikeButton
-            topicId={topic.id}
-            initialLiked={topic.liked}
-            initialLikeCount={topic.likeCount}
-          />
+          {SHOW_TOPIC_LIST_QUICK_LIKE ? (
+            <TopicLikeButton
+              topicId={topic.id}
+              initialLiked={topic.liked}
+              initialLikeCount={topic.likeCount}
+            />
+          ) : null}
           <Link
             href={topicHref}
             className="inline-flex min-h-8 items-center gap-1.5 transition-colors hover:text-primary"
