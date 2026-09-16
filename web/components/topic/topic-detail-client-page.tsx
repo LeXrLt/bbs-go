@@ -27,6 +27,9 @@ import { useI18n } from "@/lib/i18n/provider"
 import { useRouteData, useRouteSegment } from "@/lib/spa-route"
 import { useDocumentTitle } from "@/lib/use-document-title"
 
+// Keep the side action bar available for a possible future restoration.
+const SHOW_TOPIC_SIDE_ACTION_BAR = false
+
 const emptyComments: PageData<Comment> = {
   results: [],
   cursor: "0",
@@ -145,7 +148,7 @@ export function TopicDetailClientPage({
             likeCount={topic.likeCount}
             commentCount={topic.commentCount}
           >
-            <TopicSideActionBar />
+            {SHOW_TOPIC_SIDE_ACTION_BAR ? <TopicSideActionBar /> : null}
             <div className="mb-4 border-b px-4 py-3">
               {topic.title ? (
                 <h1 className="text-[26px] leading-9 font-bold wrap-break-word text-foreground">

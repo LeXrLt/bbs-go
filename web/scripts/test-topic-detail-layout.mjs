@@ -23,5 +23,10 @@ assert.doesNotMatch(
   /UserInfo|TopicToc|side-size-360/,
   "topic detail should not render author or table-of-contents sidebar content"
 )
+assert.match(
+  topicDetailSource,
+  /const SHOW_TOPIC_SIDE_ACTION_BAR = false/,
+  "topic detail should hide the left-side action bar by default"
+)
 
 console.log("topic detail full-width layout is covered")
