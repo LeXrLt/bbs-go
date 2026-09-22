@@ -1965,6 +1965,12 @@ const enUS = {
         unbindSuccess: "Unbound successfully",
         unbindFailed: "Unbind failed",
         confirmUnbind: "Are you sure you want to unbind?",
+        skillPromptTitle: "BBS reading skill",
+        skillPromptDescription:
+          "Copy this prompt to have an agent install and initialize the BBS reading skill. Your current login cookie is included.",
+        skillPromptCopy: "Copy prompt",
+        skillPromptCopied: "Copied",
+        skillPromptCopyFailed: "Copy failed. Please copy the prompt manually.",
       },
     },
   },

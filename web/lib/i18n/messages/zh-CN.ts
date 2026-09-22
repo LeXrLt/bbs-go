@@ -1920,6 +1920,12 @@ const zhCN = {
         unbindSuccess: "解绑成功",
         unbindFailed: "解绑失败",
         confirmUnbind: "确定要解除绑定？",
+        skillPromptTitle: "BBS 阅读 skill",
+        skillPromptDescription:
+          "复制下方提示词，让 agent 安装并初始化 BBS 阅读 skill。提示词已填入当前登录 Cookie。",
+        skillPromptCopy: "复制提示词",
+        skillPromptCopied: "已复制",
+        skillPromptCopyFailed: "复制失败，请手动复制提示词。",
       },
     },
   },
