@@ -1189,6 +1189,7 @@ const zhCN = {
       expandAll: "展开全部",
       collapse: "收起",
       expandError: "全文加载失败，请稍后重试",
+      unread: "未读",
       likeSuccess: "点赞成功",
       unlikeSuccess: "取消点赞成功",
     },

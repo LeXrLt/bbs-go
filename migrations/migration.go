@@ -119,4 +119,6 @@ func init() {
 	register(18, "add calendar to site navigation", migrate_add_calendar_site_nav)
 	register(19, "raise legacy attachment upload limit to 256 MB", migrate_attachment_max_size)
 	register(20, "backfill topic edit time", migrate_topic_edit_time)
+	register(21, "create persisted topic read state", migrate_topic_reads)
+	register(22, "create topic unread baselines", migrate_topic_unread_baselines)
 }

@@ -80,7 +80,7 @@ assert.equal(
   true,
   "The visibility-event backfill migration should be registered"
 )
-for (const expected of ['"agentAfter"', '"userAfter"', '"roles": roles']) {
+for (const expected of ['"agentAfter"', '"userAfter"', '"roles"']) {
   assert.equal(
     handlerSource.includes(expected),
     true,
@@ -105,7 +105,6 @@ for (const expected of [
   '"bbsgo.new-topic-marker"',
   'params: { agentAfter, userAfter }',
   "router.push(target)",
-  "router.refresh()",
 ]) {
   assert.equal(
     noticeSource.includes(expected),
@@ -113,6 +112,11 @@ for (const expected of [
     `NewTopicNotice should contain ${expected}`
   )
 }
+assert.equal(
+  noticeSource.includes("router.refresh()"),
+  true,
+  "The current role list should refresh once after its server baseline is initialized"
+)
 assert.equal(
   noticeSource.includes("markerStorageKey(userId, roleName)"),
   true,
@@ -158,6 +162,16 @@ assert.match(
   feedTabsSource,
   /event\.button !== 0[\s\S]*?event\.metaKey[\s\S]*?event\.ctrlKey[\s\S]*?event\.shiftKey[\s\S]*?event\.altKey[\s\S]*?return[\s\S]*?event\.preventDefault\(\)[\s\S]*?openRoleTopics\(item\.roleName\)/,
   "Only an unmodified left click should be intercepted; modified clicks keep native link behavior"
+)
+assert.match(
+  noticeSource,
+  /const target = `\$\{NEWEST_TOPICS_PATH\}\?\$\{targetParams\.toString\(\)\}`/,
+  "Opening a role should keep a clean role-filter URL"
+)
+assert.doesNotMatch(
+  noticeSource,
+  /targetParams\.set\(TOPIC_ROLE_AFTER_PARAM/,
+  "The unread boundary should no longer be exposed in the browser URL"
 )
 assert.equal(
   headerSource.includes("<MsgNotice count={unreadMessageCount} />"),

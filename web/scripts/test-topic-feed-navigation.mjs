@@ -19,6 +19,14 @@ const indexRouteSource = readFileSync(
   resolve(webRoot, "app/routes/_index.tsx"),
   "utf8"
 )
+const topicsRouteSource = readFileSync(
+  resolve(webRoot, "app/routes/topics.tsx"),
+  "utf8"
+)
+const loaderSource = readFileSync(
+  resolve(webRoot, "app/route-helpers/loaders.ts"),
+  "utf8"
+)
 const dynamicListSource = readFileSync(
   resolve(webRoot, "components/topic/topic-dynamic-list-client-page.tsx"),
   "utf8"
@@ -113,6 +121,16 @@ assert.match(
   dynamicListSource,
   /\.\.\.\(roleName\s*\?\s*\{\s*roleName\s*\}\s*:\s*\{\}\)/,
   "Dynamic topic pagination should preserve the role filter"
+)
+assert.match(
+  loaderSource,
+  /url\?\.pathname\s*===\s*["']\/topics["'][\s\S]*?!roleName[\s\S]*?throw redirect\([\s\S]*?topics\/category\/newest[\s\S]*?encodeURIComponent\(["']用户["']\)/,
+  "Opening /topics without a valid role filter should default to user topics"
+)
+assert.match(
+  topicsRouteSource,
+  /clientLoader\(\{\s*request\s*\}[\s\S]*?loadTopicListRouteData\(request\)/,
+  "Client-side navigation to /topics should apply the same default role redirect"
 )
 
 assert.equal(
