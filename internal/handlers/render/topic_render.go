@@ -127,15 +127,17 @@ func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int6
 		likedTopicIds = services.UserLikeService.IsLiked(currentUser.Id, constants.EntityTopic, topicIds)
 	}
 	var visibleEventIDs map[int64]int64
+	var readTopicIDs []int64
 	if unreadAfter >= 0 && currentUser != nil {
 		visibleEventIDs = repositories.TopicVisibleEventRepository.GetLatestIDs(sqls.DB(), topicIDs(topics))
+		readTopicIDs = services.TopicReadService.FindReadTopicIDs(currentUser.Id, topicIDs(topics))
 	}
 
 	var responses []resp.TopicResponse
 	for _, topic := range topics {
 		item := BuildSimpleTopic(&topic)
 		item.Liked = arrays.Contains(topic.Id, likedTopicIds)
-		item.Unread = unreadAfter >= 0 && currentUser != nil && currentUser.Id != topic.UserId && visibleEventIDs[topic.Id] > unreadAfter
+		item.Unread = unreadAfter >= 0 && currentUser != nil && currentUser.Id != topic.UserId && visibleEventIDs[topic.Id] > unreadAfter && !arrays.Contains(topic.Id, readTopicIDs)
 		if vote := services.VoteService.Get(topic.VoteId); vote != nil {
 			item.Vote = BuildVote(ctx, vote)
 		}

@@ -6,13 +6,11 @@ import { apiFetch } from "@/lib/api/client"
 import type { NewTopicStatus } from "@/lib/api/types"
 import {
   normalizeTopicRoleName,
-  TOPIC_ROLE_AFTER_PARAM,
   TOPIC_ROLE_NAME_PARAM,
   topicRoleNames,
   type TopicRoleName,
 } from "@/lib/topic-role-filter"
 import {
-  usePathname,
   useRouter,
   useSearchParams,
 } from "@/lib/router/navigation"
@@ -42,7 +40,6 @@ function markerStorageKey(userId: string, roleName: TopicRoleName) {
 }
 
 export function useRoleNewTopicNotices(userId?: string) {
-  const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
   const currentRoleName = normalizeTopicRoleName(
@@ -135,6 +132,9 @@ export function useRoleNewTopicNotices(userId?: string) {
       }
 
       setNotice({ userId, counts })
+      if (status.baselineInitialized && currentRoleName) {
+        router.refresh()
+      }
     } catch {
       // A transient polling failure should not interrupt the current page.
     } finally {
@@ -145,7 +145,7 @@ export function useRoleNewTopicNotices(userId?: string) {
         inFlightRequestRef.current = null
       }
     }
-  }, [persistMarker, userId])
+  }, [currentRoleName, persistMarker, router, userId])
 
   React.useEffect(() => {
     if (!userId) return
@@ -199,7 +199,6 @@ export function useRoleNewTopicNotices(userId?: string) {
 
   const openRoleTopics = React.useCallback(
     (roleName: TopicRoleName) => {
-      const seenMarker = seenMarkersRef.current[roleName]
       const marker = latestMarkersRef.current[roleName]
       if (marker) {
         persistMarker(roleName, marker)
@@ -212,21 +211,10 @@ export function useRoleNewTopicNotices(userId?: string) {
       const targetParams = new URLSearchParams({
         [TOPIC_ROLE_NAME_PARAM]: roleName,
       })
-      if (seenMarker) {
-        targetParams.set(TOPIC_ROLE_AFTER_PARAM, seenMarker)
-      }
       const target = `${NEWEST_TOPICS_PATH}?${targetParams.toString()}`
-      if (
-        pathname === NEWEST_TOPICS_PATH &&
-        currentRoleName === roleName &&
-        (searchParams.get(TOPIC_ROLE_AFTER_PARAM) || "") === seenMarker
-      ) {
-        router.refresh()
-      } else {
-        router.push(target)
-      }
+      router.push(target)
     },
-    [currentRoleName, pathname, persistMarker, router, searchParams, userId]
+    [persistMarker, router, userId]
   )
 
   return {

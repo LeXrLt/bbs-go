@@ -310,10 +310,42 @@ func TopicDetail(ctx *gin.Context) {
 			return
 		}
 	}
+	if user != nil && user.Id != topic.UserId {
+		if err := services.TopicReadService.MarkRead(user.Id, topicId); err != nil {
+			ginx.WriteJSON(ctx, err)
+			return
+		}
+	}
 
 	services.TopicService.IncrViewCount(topicId) // 增加浏览量
 	ginx.WriteJSON(ctx, render.BuildTopic(ctx, topic))
 
+}
+
+func TopicMarkRead(ctx *gin.Context) {
+	user, err := common.CheckLogin(ctx)
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+
+	topicId := idcodec.Decode(ctx.Param("id"))
+	topic := services.TopicService.Get(topicId)
+	if topic == nil || topic.Status == constants.StatusDeleted {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
+		return
+	}
+	if topic.Status == constants.StatusReview && topic.UserId != user.Id && !user.IsOwner() {
+		ginx.WriteJSON(ctx, ginx.ErrorCode(403, locales.Get("topic.under_review")))
+		return
+	}
+	if topic.UserId != user.Id {
+		if err := services.TopicReadService.MarkRead(user.Id, topicId); err != nil {
+			ginx.WriteJSON(ctx, err)
+			return
+		}
+	}
+	ginx.WriteJSON(ctx, nil)
 }
 
 func TopicRecentlikes(ctx *gin.Context) {
@@ -364,6 +396,7 @@ func TopicNewStatus(ctx *gin.Context) {
 	}
 
 	roles := make([]roleStatus, 0, 2)
+	baselineInitialized := false
 	for _, item := range []struct {
 		roleName   string
 		afterParam string
@@ -372,6 +405,12 @@ func TopicNewStatus(ctx *gin.Context) {
 		{roleName: "用户", afterParam: "userAfter"},
 	} {
 		after := params.FormValueInt64Default(ctx, item.afterParam, -1)
+		_, initialized, baselineErr := services.TopicUnreadBaselineService.Ensure(user.Id, item.roleName, after)
+		if baselineErr != nil {
+			ginx.WriteJSON(ctx, baselineErr)
+			return
+		}
+		baselineInitialized = baselineInitialized || initialized
 		marker, count, statusErr := services.TopicService.GetNewTopicStatus(user.Id, item.roleName, after)
 		if statusErr != nil {
 			ginx.WriteJSON(ctx, statusErr)
@@ -384,7 +423,8 @@ func TopicNewStatus(ctx *gin.Context) {
 		})
 	}
 	ginx.WriteJSON(ctx, map[string]any{
-		"roles": roles,
+		"roles":               roles,
+		"baselineInitialized": baselineInitialized,
 	})
 }
 
@@ -395,13 +435,14 @@ func TopicTopics(ctx *gin.Context) {
 		return
 	}
 	var (
-		cursor     = params.FormValueInt64Default(ctx, "cursor", 0)
-		categoryId = params.FormValueInt64Default(ctx, "categoryId", 0)
-		qaStatus   = strings.TrimSpace(params.FormValue(ctx, "qaStatus"))
-		sort       = strings.TrimSpace(params.FormValue(ctx, "sort"))
-		roleName   = services.NormalizeTopicRoleName(params.FormValue(ctx, "roleName"))
-		roleAfter  = params.FormValueInt64Default(ctx, "roleAfter", -1)
-		user       = common.GetCurrentUser(ctx)
+		cursor            = params.FormValueInt64Default(ctx, "cursor", 0)
+		categoryId        = params.FormValueInt64Default(ctx, "categoryId", 0)
+		qaStatus          = strings.TrimSpace(params.FormValue(ctx, "qaStatus"))
+		sort              = strings.TrimSpace(params.FormValue(ctx, "sort"))
+		roleName          = services.NormalizeTopicRoleName(params.FormValue(ctx, "roleName"))
+		roleAfter         = params.FormValueInt64Default(ctx, "roleAfter", -1)
+		roleAfterProvided = strings.TrimSpace(params.FormValue(ctx, "roleAfter")) != ""
+		user              = common.GetCurrentUser(ctx)
 	)
 	if categoryId == constants.CategoryIdFollow && user == nil {
 		ginx.WriteJSON(ctx, errs.NotLogin())
@@ -412,6 +453,15 @@ func TopicTopics(ctx *gin.Context) {
 		roleAfter = -1
 	} else if roleName == "" {
 		roleAfter = -1
+	} else if !roleAfterProvided && user != nil {
+		baseline, found, baselineErr := services.TopicUnreadBaselineService.Get(user.Id, roleName)
+		if baselineErr != nil {
+			ginx.WriteJSON(ctx, baselineErr)
+			return
+		}
+		if found {
+			roleAfter = baseline
+		}
 	}
 
 	var temp []models.Topic

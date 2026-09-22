@@ -13,6 +13,7 @@ import (
 	"bbs-go/internal/models/resp"
 	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/config"
+	"bbs-go/internal/pkg/idcodec"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -116,7 +117,8 @@ func TestTopicNewStatusReturnsIndependentRoleStatuses(t *testing.T) {
 	var result struct {
 		Success bool `json:"success"`
 		Data    struct {
-			Roles []struct {
+			BaselineInitialized bool `json:"baselineInitialized"`
+			Roles               []struct {
 				RoleName string `json:"roleName"`
 				Marker   string `json:"marker"`
 				Count    int64  `json:"count"`
@@ -126,7 +128,7 @@ func TestTopicNewStatusReturnsIndependentRoleStatuses(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatalf("decode response %q: %v", w.Body.String(), err)
 	}
-	if !result.Success || len(result.Data.Roles) != 2 {
+	if !result.Success || !result.Data.BaselineInitialized || len(result.Data.Roles) != 2 {
 		t.Fatalf("unexpected response: %s", w.Body.String())
 	}
 	if result.Data.Roles[0].RoleName != "agent" || result.Data.Roles[0].Marker != "1" || result.Data.Roles[0].Count != 1 {
@@ -134,6 +136,15 @@ func TestTopicNewStatusReturnsIndependentRoleStatuses(t *testing.T) {
 	}
 	if result.Data.Roles[1].RoleName != "用户" || result.Data.Roles[1].Marker != "2" || result.Data.Roles[1].Count != 1 {
 		t.Fatalf("unexpected response: %s", w.Body.String())
+	}
+	var baselineCount int64
+	if err := db.Model(&models.TopicUnreadBaseline{}).
+		Where("user_id = ? AND event_id = ?", 1, 0).
+		Count(&baselineCount).Error; err != nil {
+		t.Fatalf("count initialized baselines: %v", err)
+	}
+	if baselineCount != 2 {
+		t.Fatalf("initialized baseline count = %d, want 2", baselineCount)
 	}
 }
 
@@ -193,10 +204,49 @@ func setupTopicHandlerCategoryTestDB(t *testing.T) *gorm.DB {
 	})
 
 	sqls.SetDB(db)
-	if err := db.AutoMigrate(&models.Category{}, &models.Topic{}, &models.TopicVisibleEvent{}, &models.Role{}, &models.UserRole{}); err != nil {
+	if err := db.AutoMigrate(&models.Category{}, &models.Topic{}, &models.TopicVisibleEvent{}, &models.TopicRead{}, &models.TopicUnreadBaseline{}, &models.Role{}, &models.UserRole{}); err != nil {
 		t.Fatalf("auto migrate topic handler models: %v", err)
 	}
 	return db
+}
+
+func TestTopicMarkReadIsIdempotent(t *testing.T) {
+	db := setupTopicHandlerCategoryTestDB(t)
+	idcodec.Init(1)
+	topic := &models.Topic{
+		UserId:          2,
+		Title:           "mark read",
+		Status:          constants.StatusOk,
+		LastCommentTime: 1,
+		CreateTime:      1,
+	}
+	if err := db.Create(topic).Error; err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+
+	for i := 0; i < 2; i++ {
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(w)
+		ctx.Params = gin.Params{{Key: "id", Value: idcodec.Encode(topic.Id)}}
+		ctx.Request = httptest.NewRequest(http.MethodPost, "/api/topic/mark_read/"+idcodec.Encode(topic.Id), nil)
+		common.SetCurrentUser(ctx, &models.User{Model: models.Model{Id: 1}})
+
+		TopicMarkRead(ctx)
+		if w.Code != http.StatusOK {
+			t.Fatalf("mark read request %d status = %d, body = %s", i+1, w.Code, w.Body.String())
+		}
+	}
+
+	var count int64
+	if err := db.Model(&models.TopicRead{}).
+		Where("user_id = ? AND topic_id = ?", 1, topic.Id).
+		Count(&count).Error; err != nil {
+		t.Fatalf("count read records: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("read record count = %d, want 1", count)
+	}
 }
 
 func mustCreateTopicHandlerCategory(t *testing.T, db *gorm.DB, category *models.Category) {

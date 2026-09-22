@@ -6,6 +6,7 @@ import {
   CircleHelp,
   ImageIcon,
   ListChecks,
+  Mail,
   MessageCircle,
 } from "lucide-react"
 import Link from "@/components/common/link"
@@ -112,6 +113,18 @@ function TopicContentMarks({ topic, t }: { topic: Topic; t: TFunction }) {
   )
 }
 
+function UnreadTopicMark({ t }: { t: TFunction }) {
+  return (
+    <span
+      className="inline-flex shrink-0 items-center text-primary"
+      title={t("component.topicList.unread")}
+      aria-label={t("component.topicList.unread")}
+    >
+      <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+    </span>
+  )
+}
+
 export function TopicListItem({
   topic,
   showSticky,
@@ -132,7 +145,29 @@ export function TopicListItem({
   const imageSizeClass = getTopicImageSizeClass(topic.imageList?.length || 0)
   const [expandedTopic, setExpandedTopic] = React.useState<Topic | null>(null)
   const [expanding, setExpanding] = React.useState(false)
+  const [unread, setUnread] = React.useState(Boolean(topic.unread))
   const { msgError } = useToastActions()
+
+  React.useEffect(() => {
+    setUnread(Boolean(topic.unread))
+  }, [topic.id, topic.unread])
+
+  const markRead = React.useCallback(async () => {
+    if (!unread) return
+
+    try {
+      await apiFetch<null>(`/api/topic/mark_read/${topic.id}`, {
+        method: "POST",
+      })
+      setUnread(false)
+    } catch {
+      // Keep the unread state when persistence fails so the user can retry.
+    }
+  }, [topic.id, unread])
+
+  const handleTopicOpen = React.useCallback(() => {
+    void markRead()
+  }, [markRead])
 
   async function toggleExpanded(event?: React.MouseEvent<HTMLButtonElement>) {
     event?.preventDefault()
@@ -144,6 +179,7 @@ export function TopicListItem({
 
     if (topic.content && topic.type === 1) {
       setExpandedTopic(topic)
+      void markRead()
       return
     }
 
@@ -151,6 +187,7 @@ export function TopicListItem({
     try {
       const fullTopic = await apiFetch<Topic>(`/api/topic/${topic.id}`)
       setExpandedTopic(fullTopic)
+      setUnread(false)
     } catch {
       msgError(t("component.topicList.expandError"))
     } finally {
@@ -171,7 +208,7 @@ export function TopicListItem({
         : ""
 
     return (
-      <li className={cn("px-3 py-3 sm:px-4", topic.unread && "bg-accent/45")}>
+      <li className={cn("px-3 py-3 sm:px-4", unread && "bg-accent/45")}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <UserAvatar
@@ -210,6 +247,7 @@ export function TopicListItem({
                   target="_blank"
                   rel="noopener noreferrer"
                   className="line-clamp-1 min-w-0 text-sm font-medium break-all text-foreground hover:text-primary"
+                  onClick={handleTopicOpen}
                 >
                   {compactTitle}
                 </Link>
@@ -237,6 +275,7 @@ export function TopicListItem({
                 </Link>
                 <span className="text-border">•</span>
                 <span>{prettyDate(topic.createTime, t)}</span>
+                {unread ? <UnreadTopicMark t={t} /> : null}
                 {replyTime ? (
                   <>
                     <span className="text-border">•</span>
@@ -260,7 +299,7 @@ export function TopicListItem({
   }
 
   return (
-    <li className={cn("px-4 py-3", topic.unread && "bg-accent/45")}>
+    <li className={cn("px-4 py-3", unread && "bg-accent/45")}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <UserAvatar user={topic.user} size={24} className="shrink-0" />
@@ -276,6 +315,7 @@ export function TopicListItem({
             <span className="truncate text-muted-foreground">
               {prettyDate(topic.createTime, t)}
             </span>
+            {unread ? <UnreadTopicMark t={t} /> : null}
           </div>
         </div>
         {showSticky && topic.sticky ? (
@@ -293,6 +333,7 @@ export function TopicListItem({
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-[15px] leading-6 font-semibold break-all text-foreground sm:text-base"
+              onClick={handleTopicOpen}
             >
               {topic.type === 2 ? (
                 <span
@@ -323,15 +364,15 @@ export function TopicListItem({
             </Link>
             {topic.summary ? (
               expandedTopic ? (
-                <>
-                  <TopicContent topic={expandedTopic} />
+                <div>
+                  <TopicContent topic={expandedTopic} variant="list" />
                   <ExpandPreviewButton
                     expanded
                     loading={expanding}
                     onClick={toggleExpanded}
                     t={t}
                   />
-                </>
+                </div>
               ) : (
                 <div>
                   <Link
@@ -342,6 +383,7 @@ export function TopicListItem({
                       "inline text-[15px] leading-6 break-all text-muted-foreground hover:text-foreground/80 sm:text-sm sm:leading-normal",
                       topic.type === 0 ? "whitespace-pre-line" : "line-clamp-3"
                     )}
+                    onClick={handleTopicOpen}
                   >
                     {previewText}
                   </Link>
@@ -359,15 +401,15 @@ export function TopicListItem({
           <>
             {topic.content ? (
               expandedTopic ? (
-                <>
-                  <TopicContent topic={expandedTopic} />
+                <div>
+                  <TopicContent topic={expandedTopic} variant="list" />
                   <ExpandPreviewButton
                     expanded
                     loading={expanding}
                     onClick={toggleExpanded}
                     t={t}
                   />
-                </>
+                </div>
               ) : (
                 <div>
                   <Link
@@ -375,6 +417,7 @@ export function TopicListItem({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="line-clamp-3 inline text-[15px] leading-6 break-all whitespace-pre-line text-foreground sm:text-sm sm:leading-normal"
+                    onClick={handleTopicOpen}
                   >
                     {topic.content}
                   </Link>
@@ -399,6 +442,7 @@ export function TopicListItem({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block h-full w-full overflow-hidden rounded-sm bg-muted"
+                      onClick={handleTopicOpen}
                     >
                       <img
                         src={image.preview || image.url}
@@ -449,6 +493,7 @@ export function TopicListItem({
           <Link
             href={topicHref}
             className="inline-flex min-h-8 items-center gap-1.5 transition-colors hover:text-primary"
+            onClick={handleTopicOpen}
           >
             <MessageCircle className="h-4 w-4" />
             <span className="min-w-[1ch] text-sm leading-none">

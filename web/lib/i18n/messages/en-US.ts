@@ -1209,6 +1209,7 @@ const enUS = {
       expandAll: "Expand all",
       collapse: "Collapse",
       expandError: "Couldn't load the full post. Try again later.",
+      unread: "Unread",
       likeSuccess: "Liked",
       unlikeSuccess: "Unliked",
     },

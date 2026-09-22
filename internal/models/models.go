@@ -10,7 +10,7 @@ var Models = []interface{}{
 	&Migration{},
 	&UserRole{}, &Role{}, &Permission{}, &RolePermission{}, &DictType{}, &Dict{},
 
-	&User{}, &UserToken{}, &ThirdUser{}, &Tag{}, &Article{}, &ArticleTag{}, &Comment{}, &Favorite{}, &Topic{}, &TopicVisibleEvent{}, &Category{},
+	&User{}, &UserToken{}, &ThirdUser{}, &Tag{}, &Article{}, &ArticleTag{}, &Comment{}, &Favorite{}, &Topic{}, &TopicVisibleEvent{}, &TopicRead{}, &TopicUnreadBaseline{}, &Category{},
 	&TopicTag{}, &UserLike{}, &Message{}, &SysConfig{}, &Link{},
 	&TaskConfig{}, &UserTaskEvent{}, &UserTaskLog{},
 	&Badge{}, &UserBadge{},
@@ -267,6 +267,23 @@ type TopicVisibleEvent struct {
 	Model
 	TopicId    int64 `gorm:"type:bigint;not null;index:idx_topic_visible_event_topic_id" json:"topicId" form:"topicId"`
 	CreateTime int64 `gorm:"type:bigint;not null" json:"createTime" form:"createTime"`
+}
+
+// TopicRead persists a user's read state across sessions and devices.
+type TopicRead struct {
+	Model
+	UserId   int64 `gorm:"type:bigint;not null;uniqueIndex:uk_topic_read_user_topic" json:"userId" form:"userId"`
+	TopicId  int64 `gorm:"type:bigint;not null;uniqueIndex:uk_topic_read_user_topic;index:idx_topic_read_topic_id" json:"topicId" form:"topicId"`
+	ReadTime int64 `gorm:"type:bigint;not null" json:"readTime" form:"readTime"`
+}
+
+// TopicUnreadBaseline stores the first visibility event that can be unread for a user and role.
+type TopicUnreadBaseline struct {
+	Model
+	UserId     int64  `gorm:"type:bigint;not null;uniqueIndex:uk_topic_unread_baseline_user_role" json:"userId" form:"userId"`
+	RoleName   string `gorm:"size:32;not null;uniqueIndex:uk_topic_unread_baseline_user_role" json:"roleName" form:"roleName"`
+	EventId    int64  `gorm:"type:bigint;not null" json:"eventId" form:"eventId"`
+	CreateTime int64  `gorm:"type:bigint;not null" json:"createTime" form:"createTime"`
 }
 
 // Vote 投票

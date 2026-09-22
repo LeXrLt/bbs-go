@@ -33,9 +33,38 @@ func setupTopicNewStatusTestDB(t *testing.T) {
 		&models.UserRole{},
 		&models.Topic{},
 		&models.TopicVisibleEvent{},
+		&models.TopicRead{},
+		&models.TopicUnreadBaseline{},
 		&models.TopicTag{},
 	); err != nil {
 		t.Fatalf("auto migrate new topic status models: %v", err)
+	}
+}
+
+func TestTopicUnreadBaselineServiceInitializesOncePerRole(t *testing.T) {
+	setupTopicNewStatusTestDB(t)
+
+	now := dates.NowTimestamp()
+	currentUser := mustCreateUser(t, now)
+	secondViewer := mustCreateUser(t, now)
+	regularUser := mustCreateUser(t, now)
+	regularRole := mustCreateNamedRoleForNewStatus(t, "用户", "baseline-user", constants.StatusOk)
+	mustAssignRole(t, regularUser, regularRole)
+	_, firstEvent := mustCreateVisibleTopicForNewStatus(t, regularUser.Id)
+	_, latestEvent := mustCreateVisibleTopicForNewStatus(t, regularUser.Id)
+
+	eventId, initialized, err := TopicUnreadBaselineService.Ensure(currentUser.Id, "用户", firstEvent.Id)
+	if err != nil || !initialized || eventId != firstEvent.Id {
+		t.Fatalf("first baseline ensure = (%d, %t, %v), want (%d, true, nil)", eventId, initialized, err, firstEvent.Id)
+	}
+	eventId, initialized, err = TopicUnreadBaselineService.Ensure(currentUser.Id, "用户", latestEvent.Id)
+	if err != nil || initialized || eventId != firstEvent.Id {
+		t.Fatalf("second baseline ensure = (%d, %t, %v), want (%d, false, nil)", eventId, initialized, err, firstEvent.Id)
+	}
+
+	eventId, initialized, err = TopicUnreadBaselineService.Ensure(secondViewer.Id, "用户", -1)
+	if err != nil || !initialized || eventId != latestEvent.Id {
+		t.Fatalf("missing browser marker baseline = (%d, %t, %v), want (%d, true, nil)", eventId, initialized, err, latestEvent.Id)
 	}
 }
 
@@ -178,6 +207,25 @@ func TestTopicService_GetNewTopicStatusExcludesOwnTopicFromCount(t *testing.T) {
 	marker, count := mustGetNewTopicStatus(t, currentUser.Id, "agent", 0)
 	if marker != ownEvent.Id || count != 0 {
 		t.Fatalf("own-topic status = (%d, %d), want (%d, 0)", marker, count, ownEvent.Id)
+	}
+}
+
+func TestTopicService_GetNewTopicStatusExcludesReadTopics(t *testing.T) {
+	setupTopicNewStatusTestDB(t)
+
+	now := dates.NowTimestamp()
+	currentUser := mustCreateUser(t, now)
+	agentUser := mustCreateUser(t, now)
+	agentRole := mustCreateNamedRoleForNewStatus(t, "agent", "read-agent", constants.StatusOk)
+	mustAssignRole(t, agentUser, agentRole)
+	topic, event := mustCreateVisibleTopicForNewStatus(t, agentUser.Id)
+
+	if err := TopicReadService.MarkRead(currentUser.Id, topic.Id); err != nil {
+		t.Fatalf("mark topic read: %v", err)
+	}
+	marker, count := mustGetNewTopicStatus(t, currentUser.Id, "agent", 0)
+	if marker != event.Id || count != 0 {
+		t.Fatalf("read-topic status = (%d, %d), want (%d, 0)", marker, count, event.Id)
 	}
 }
 

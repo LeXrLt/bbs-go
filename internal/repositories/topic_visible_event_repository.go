@@ -60,8 +60,15 @@ func (r *topicVisibleEventRepository) GetRoleStatus(db *gorm.DB, userId int64, r
 	err = db.Table("t_topic_visible_event AS visible_event").
 		Select(`COALESCE(MAX(visible_event.id), 0) AS marker,
 			COUNT(DISTINCT CASE
-				WHEN visible_event.id > ? AND topic.user_id <> ? THEN visible_event.topic_id
-			END) AS count`, countAfter, userId).
+				WHEN visible_event.id > ? AND topic.user_id <> ?
+					AND NOT EXISTS (
+						SELECT 1
+						FROM t_topic_read
+						WHERE t_topic_read.user_id = ?
+							AND t_topic_read.topic_id = visible_event.topic_id
+					)
+				THEN visible_event.topic_id
+			END) AS count`, countAfter, userId, userId).
 		Joins("JOIN t_topic AS topic ON topic.id = visible_event.topic_id").
 		Where("topic.status = ?", constants.StatusOk).
 		Where(`EXISTS (

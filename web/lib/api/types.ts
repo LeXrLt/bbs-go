@@ -21,6 +21,7 @@ export interface NewTopicRoleStatus {
 
 export interface NewTopicStatus {
   roles: NewTopicRoleStatus[]
+  baselineInitialized?: boolean
 }
 
 export interface UserSummary {

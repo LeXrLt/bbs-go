@@ -135,14 +135,17 @@ export async function loadTopics(params: {
 export async function loadTopicListRouteData(
   request?: Request
 ): Promise<TopicListRouteData> {
-  const roleName = request
-    ? normalizeTopicRoleName(
-        new URL(request.url).searchParams.get(TOPIC_ROLE_NAME_PARAM)
-      )
-    : ""
+  const url = request ? new URL(request.url) : null
+  const roleName = normalizeTopicRoleName(
+    url?.searchParams.get(TOPIC_ROLE_NAME_PARAM)
+  )
+  if (url?.pathname === "/topics" && !roleName) {
+    throw redirect(
+      `/topics/category/newest?${TOPIC_ROLE_NAME_PARAM}=${encodeURIComponent("用户")}`
+    )
+  }
   const roleAfter = roleName
-    ? new URL(request?.url || "http://local").searchParams.get("roleAfter") ||
-      ""
+    ? url?.searchParams.get("roleAfter") || ""
     : ""
   const [topics, categories] = await Promise.all([
     loadTopics({ request, roleName, roleAfter }),
