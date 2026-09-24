@@ -28,6 +28,7 @@ const zhCN = {
       login: "登录",
       confirmLogout: "确定退出登录吗？",
       toggleMenu: "展开菜单",
+      repliesToMe: "回复我的",
     },
     footer: {
       poweredBy: "Powered by",

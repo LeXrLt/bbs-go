@@ -96,9 +96,11 @@ export function PrivateUserCenterPage({
     let mounted = true
     void Promise.all([
       apiFetch<PageData<PrivateUserCenterItem>>(listPath(kind)),
-      apiFetch<Badge[]>("/api/badge/badges", {
-        params: { userId: user.id },
-      }).catch(() => []),
+      kind === "messages"
+        ? Promise.resolve([])
+        : apiFetch<Badge[]>("/api/badge/badges", {
+            params: { userId: user.id },
+          }).catch(() => []),
       apiFetch<PageData<UserSummary>>("/api/fans/recent/fans", {
         params: { userId: user.id },
       }).catch(() => ({ results: [], cursor: "", hasMore: false })),
@@ -129,6 +131,8 @@ export function PrivateUserCenterPage({
       badges={badges}
       fans={fans}
       followed={followed}
+      showCounts={kind !== "messages"}
+      showBadges={kind !== "messages"}
       t={t}
     >
       <WidgetCard

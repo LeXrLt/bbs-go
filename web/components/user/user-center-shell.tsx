@@ -10,6 +10,8 @@ export function UserCenterShell({
   profileBadges,
   fans,
   followed,
+  showCounts = true,
+  showBadges = true,
   t,
   children,
 }: {
@@ -19,6 +21,8 @@ export function UserCenterShell({
   profileBadges?: Badge[]
   fans: UserSummary[]
   followed: UserSummary[]
+  showCounts?: boolean
+  showBadges?: boolean
   t: TFunction
   children: React.ReactNode
 }) {
@@ -31,13 +35,15 @@ export function UserCenterShell({
           currentUser={currentUser}
         />
       </div>
-      <div className="container main-container right-main side-size-360">
+      <div className="main-container right-main side-size-360 container">
         <UserCenterSidebar
           user={user}
           currentUser={currentUser}
           badges={badges}
           fans={fans}
           followed={followed}
+          showCounts={showCounts}
+          showBadges={showBadges}
           t={t}
         />
         <div className="right-container">{children}</div>

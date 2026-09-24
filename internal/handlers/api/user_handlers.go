@@ -259,9 +259,9 @@ func UserMsgRecent(ctx *gin.Context) {
 	var count int64 = 0
 	var messages []models.Message
 	if user != nil {
-		count = services.MessageService.GetUnReadCount(user.Id)
+		count = services.MessageService.GetUnreadReplyCount(user.Id)
 		messages = services.MessageService.Find(sqls.NewCnd().Eq("user_id", user.Id).
-			Eq("status", msg.StatusUnread).Limit(3).Desc("id"))
+			Eq("status", msg.StatusUnread).In("type", msg.ReplyTypes).Limit(3).Desc("id"))
 	}
 	ginx.WriteJSON(ctx, map[string]any{"count": count, "messages": render.BuildMessages(messages)})
 
@@ -278,7 +278,7 @@ func UserMessages(ctx *gin.Context) {
 		cursor, _ = params.GetInt64(ctx, "cursor")
 	)
 
-	cnd := sqls.NewCnd().Eq("user_id", user.Id).Limit(limit).Desc("id")
+	cnd := sqls.NewCnd().Eq("user_id", user.Id).In("type", msg.ReplyTypes).Limit(limit).Desc("id")
 	if cursor > 0 {
 		cnd.Lt("id", cursor)
 	}
@@ -293,8 +293,8 @@ func UserMessages(ctx *gin.Context) {
 		hasMore = len(list) == limit
 	}
 
-	// 全部标记为已读
-	services.MessageService.MarkRead(user.Id)
+	// 只标记当前收件箱中可见的回复消息为已读。
+	services.MessageService.MarkRepliesRead(user.Id)
 
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildMessages(list), cast.ToString(nextCursor), hasMore))
 
