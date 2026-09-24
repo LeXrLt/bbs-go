@@ -28,6 +28,7 @@ const enUS = {
       login: "Sign in",
       confirmLogout: "Are you sure you want to sign out?",
       toggleMenu: "Toggle menu",
+      repliesToMe: "Replies to me",
     },
     footer: {
       poweredBy: "Powered by",

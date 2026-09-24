@@ -196,6 +196,8 @@ export function UserCenterSidebar({
   badges,
   fans,
   followed,
+  showCounts = true,
+  showBadges = true,
   t,
 }: {
   user: UserSummary
@@ -203,12 +205,16 @@ export function UserCenterSidebar({
   badges: Badge[]
   fans: UserSummary[]
   followed: UserSummary[]
+  showCounts?: boolean
+  showBadges?: boolean
   t: TFunction
 }) {
   return (
     <div className="left-container space-y-4">
-      <UserCountsCard user={user} t={t} />
-      <UserBadgesWidget user={user} badges={badges} t={t} />
+      {showCounts ? <UserCountsCard user={user} t={t} /> : null}
+      {showBadges ? (
+        <UserBadgesWidget user={user} badges={badges} t={t} />
+      ) : null}
       <MyProfileCard user={user} currentUser={currentUser} t={t} />
       <FollowWidget
         title={t("component.fansWidget.title")}

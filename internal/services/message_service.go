@@ -80,16 +80,18 @@ func (s *messageService) Delete(id int64) {
 	repositories.MessageRepository.Delete(sqls.DB(), id)
 }
 
-// GetUnReadCount 获取未读消息数量
-func (s *messageService) GetUnReadCount(userId int64) (count int64) {
-	sqls.DB().Where("user_id = ? and status = ?", userId, msg.StatusUnread).Model(&models.Message{}).Count(&count)
+// GetUnreadReplyCount returns the unread count for messages that represent a reply.
+func (s *messageService) GetUnreadReplyCount(userId int64) (count int64) {
+	sqls.DB().Where("user_id = ? and status = ? and type in ?", userId, msg.StatusUnread, msg.ReplyTypes).
+		Model(&models.Message{}).Count(&count)
 	return
 }
 
-// MarkRead 将所有消息标记为已读
-func (s *messageService) MarkRead(userId int64) {
-	sqls.DB().Exec("update t_message set status = ? where user_id = ? and status = ?", msg.StatusHaveRead,
-		userId, msg.StatusUnread)
+// MarkRepliesRead marks only the messages visible in the replies inbox as read.
+func (s *messageService) MarkRepliesRead(userId int64) {
+	sqls.DB().Model(&models.Message{}).
+		Where("user_id = ? and status = ? and type in ?", userId, msg.StatusUnread, msg.ReplyTypes).
+		Update("status", msg.StatusHaveRead)
 }
 
 // SendMsg 发送消息（站内信和/或邮件由通知配置分别控制）
