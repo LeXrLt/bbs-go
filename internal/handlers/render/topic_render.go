@@ -105,14 +105,18 @@ func buildSimpleTopicSummary(topic *models.Topic) string {
 }
 
 func BuildSimpleTopics(ctx *gin.Context, topics []models.Topic) []resp.TopicResponse {
-	return buildSimpleTopics(ctx, topics, -1)
+	return buildSimpleTopics(ctx, topics, -1, nil)
 }
 
 func BuildSimpleTopicsWithUnread(ctx *gin.Context, topics []models.Topic, unreadAfter int64) []resp.TopicResponse {
-	return buildSimpleTopics(ctx, topics, unreadAfter)
+	return buildSimpleTopics(ctx, topics, unreadAfter, nil)
 }
 
-func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int64) []resp.TopicResponse {
+func BuildSimpleTopicsWithRoleUnread(ctx *gin.Context, topics []models.Topic, unreadAfterByRole map[string]int64) []resp.TopicResponse {
+	return buildSimpleTopics(ctx, topics, -1, unreadAfterByRole)
+}
+
+func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int64, unreadAfterByRole map[string]int64) []resp.TopicResponse {
 	if len(topics) == 0 {
 		return nil
 	}
@@ -128,16 +132,36 @@ func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int6
 	}
 	var visibleEventIDs map[int64]int64
 	var readTopicIDs []int64
-	if unreadAfter >= 0 && currentUser != nil {
+	var roleNamesByUserID map[int64][]string
+	if (unreadAfter >= 0 || len(unreadAfterByRole) > 0) && currentUser != nil {
 		visibleEventIDs = repositories.TopicVisibleEventRepository.GetLatestIDs(sqls.DB(), topicIDs(topics))
 		readTopicIDs = services.TopicReadService.FindReadTopicIDs(currentUser.Id, topicIDs(topics))
+		if len(unreadAfterByRole) > 0 {
+			roleNames := make([]string, 0, len(unreadAfterByRole))
+			for roleName := range unreadAfterByRole {
+				roleNames = append(roleNames, roleName)
+			}
+			roleNamesByUserID = repositories.UserRoleRepository.GetActiveRoleNamesByUserIDs(sqls.DB(), topicUserIDs(topics), roleNames)
+		}
 	}
 
 	var responses []resp.TopicResponse
 	for _, topic := range topics {
 		item := BuildSimpleTopic(&topic)
 		item.Liked = arrays.Contains(topic.Id, likedTopicIds)
-		item.Unread = unreadAfter >= 0 && currentUser != nil && currentUser.Id != topic.UserId && visibleEventIDs[topic.Id] > unreadAfter && !arrays.Contains(topic.Id, readTopicIDs)
+		if currentUser != nil && currentUser.Id != topic.UserId && !arrays.Contains(topic.Id, readTopicIDs) {
+			eventID := visibleEventIDs[topic.Id]
+			if unreadAfter >= 0 {
+				item.Unread = eventID > unreadAfter
+			} else {
+				for _, roleName := range roleNamesByUserID[topic.UserId] {
+					if roleAfter, ok := unreadAfterByRole[roleName]; ok && eventID > roleAfter {
+						item.Unread = true
+						break
+					}
+				}
+			}
+		}
 		if vote := services.VoteService.Get(topic.VoteId); vote != nil {
 			item.Vote = BuildVote(ctx, vote)
 		}
@@ -150,6 +174,14 @@ func topicIDs(topics []models.Topic) []int64 {
 	ids := make([]int64, 0, len(topics))
 	for _, topic := range topics {
 		ids = append(ids, topic.Id)
+	}
+	return ids
+}
+
+func topicUserIDs(topics []models.Topic) []int64 {
+	ids := make([]int64, 0, len(topics))
+	for _, topic := range topics {
+		ids = append(ids, topic.UserId)
 	}
 	return ids
 }

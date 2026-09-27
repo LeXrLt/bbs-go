@@ -10,10 +10,7 @@ import {
   topicRoleNames,
   type TopicRoleName,
 } from "@/lib/topic-role-filter"
-import {
-  useRouter,
-  useSearchParams,
-} from "@/lib/router/navigation"
+import { useRouter } from "@/lib/router/navigation"
 
 export const NEW_TOPIC_POLL_INTERVAL_MS = 30_000
 
@@ -40,11 +37,7 @@ function markerStorageKey(userId: string, roleName: TopicRoleName) {
 }
 
 export function useRoleNewTopicNotices(userId?: string) {
-  const searchParams = useSearchParams()
   const router = useRouter()
-  const currentRoleName = normalizeTopicRoleName(
-    searchParams.get(TOPIC_ROLE_NAME_PARAM)
-  )
   const [notice, setNotice] = React.useState({
     userId: "",
     counts: emptyRoleCounts(),
@@ -132,7 +125,7 @@ export function useRoleNewTopicNotices(userId?: string) {
       }
 
       setNotice({ userId, counts })
-      if (status.baselineInitialized && currentRoleName) {
+      if (status.baselineInitialized) {
         router.refresh()
       }
     } catch {
@@ -145,7 +138,7 @@ export function useRoleNewTopicNotices(userId?: string) {
         inFlightRequestRef.current = null
       }
     }
-  }, [currentRoleName, persistMarker, router, userId])
+  }, [persistMarker, router, userId])
 
   React.useEffect(() => {
     if (!userId) return

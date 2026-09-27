@@ -63,33 +63,7 @@ func (s *userRoleService) Delete(id int64) {
 
 func (s *userRoleService) UpdateUserRoles(userId int64, roleIds []int64) error {
 	err := sqls.DB().Transaction(func(tx *gorm.DB) error {
-		var roles []models.Role
-		if len(roleIds) > 0 {
-			roles = repositories.RoleRepository.Find(tx, sqls.NewCnd().In("id", roleIds))
-		}
-
-		var roleCodes []string
-		for _, role := range roles {
-			roleCodes = append(roleCodes, role.Code)
-		}
-
-		if err := tx.Delete(&models.UserRole{}, "user_id = ?", userId).Error; err != nil {
-			return err
-		}
-		if len(roles) == 0 {
-			return repositories.UserRepository.UpdateColumn(tx, userId, "roles", "")
-		} else {
-			for _, role := range roles {
-				if err := repositories.UserRoleRepository.Create(tx, &models.UserRole{
-					UserId:     userId,
-					RoleId:     role.Id,
-					CreateTime: dates.NowTimestamp(),
-				}); err != nil {
-					return err
-				}
-			}
-			return repositories.UserRepository.UpdateColumn(tx, userId, "roles", strings.Join(roleCodes, ","))
-		}
+		return updateUserRoles(tx, userId, roleIds)
 	})
 	if err != nil {
 		return err
@@ -97,6 +71,32 @@ func (s *userRoleService) UpdateUserRoles(userId int64, roleIds []int64) error {
 	cache.UserCache.Invalidate(userId)
 	PermissionService.InvalidateUser(userId)
 	return nil
+}
+
+func updateUserRoles(tx *gorm.DB, userId int64, roleIds []int64) error {
+	var roles []models.Role
+	if len(roleIds) > 0 {
+		roles = repositories.RoleRepository.Find(tx, sqls.NewCnd().In("id", roleIds))
+	}
+
+	roleCodes := make([]string, 0, len(roles))
+	for _, role := range roles {
+		roleCodes = append(roleCodes, role.Code)
+	}
+
+	if err := tx.Delete(&models.UserRole{}, "user_id = ?", userId).Error; err != nil {
+		return err
+	}
+	for _, role := range roles {
+		if err := repositories.UserRoleRepository.Create(tx, &models.UserRole{
+			UserId:     userId,
+			RoleId:     role.Id,
+			CreateTime: dates.NowTimestamp(),
+		}); err != nil {
+			return err
+		}
+	}
+	return repositories.UserRepository.UpdateColumn(tx, userId, "roles", strings.Join(roleCodes, ","))
 }
 
 func (s *userRoleService) GetUserRoleIds(userId int64) (roleIds []int64) {

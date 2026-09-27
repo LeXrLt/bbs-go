@@ -22,6 +22,13 @@ const (
 	TypeQaAnswerAccepted Type = 9 // 回答被采纳为最佳答案
 )
 
+// ReplyTypes are the message types shown in the user's "replies to me" inbox.
+var ReplyTypes = []int{
+	int(TypeTopicComment),
+	int(TypeCommentReply),
+	int(TypeArticleComment),
+}
+
 type TopicLikeExtraData struct {
 	TopicId    int64 `json:"topicId"`
 	LikeUserId int64 `json:"likeUserId"`

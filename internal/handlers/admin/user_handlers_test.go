@@ -207,6 +207,19 @@ func TestUserCreateGeneratesLoginPasswordAndAllowsEmptyNickname(t *testing.T) {
 	if user.Nickname != "" {
 		t.Fatalf("expected empty nickname to be allowed, got %q", user.Nickname)
 	}
+	if user.Roles != "user" {
+		t.Fatalf("expected default user role code, got %q", user.Roles)
+	}
+	if len(result.Data.RoleIds) != 1 {
+		t.Fatalf("expected one default role id, got %#v", result.Data.RoleIds)
+	}
+	var defaultRole models.Role
+	if err := db.First(&defaultRole, result.Data.RoleIds[0]).Error; err != nil {
+		t.Fatalf("find default role: %v", err)
+	}
+	if defaultRole.Name != services.TopicRoleNameUser {
+		t.Fatalf("expected default role %q, got %q", services.TopicRoleNameUser, defaultRole.Name)
+	}
 	if user.Password == result.Data.Password {
 		t.Fatal("expected database to contain a password hash, not plaintext")
 	}
@@ -215,6 +228,37 @@ func TestUserCreateGeneratesLoginPasswordAndAllowsEmptyNickname(t *testing.T) {
 	}
 	if _, err := services.UserService.SignIn("staff01", result.Data.Password); err != nil {
 		t.Fatalf("sign in with generated password: %v", err)
+	}
+}
+
+func TestUserCreateKeepsExplicitRoleSelection(t *testing.T) {
+	db := setupAdminUserTestDB(t)
+	agentRole := &models.Role{
+		Name:   services.TopicRoleNameAgent,
+		Code:   "agent",
+		Status: constants.StatusOk,
+	}
+	if err := db.Create(agentRole).Error; err != nil {
+		t.Fatalf("create agent role: %v", err)
+	}
+
+	result := postUserCreate(t, fmt.Sprintf(
+		"username=agent01&email=agent01%%40example.com&roleIds=%d",
+		agentRole.Id,
+	))
+	if !result.Success {
+		t.Fatalf("expected success response, got %#v", result)
+	}
+	if len(result.Data.RoleIds) != 1 || result.Data.RoleIds[0] != agentRole.Id {
+		t.Fatalf("expected explicit agent role %d, got %#v", agentRole.Id, result.Data.RoleIds)
+	}
+
+	var user models.User
+	if err := db.First(&user, "username = ?", "agent01").Error; err != nil {
+		t.Fatalf("find created agent user: %v", err)
+	}
+	if user.Roles != agentRole.Code {
+		t.Fatalf("expected role code %q, got %q", agentRole.Code, user.Roles)
 	}
 }
 
@@ -340,8 +384,15 @@ func setupAdminUserTestDB(t *testing.T) *gorm.DB {
 	})
 
 	sqls.SetDB(db)
-	if err := db.AutoMigrate(&models.User{}, &models.UserToken{}); err != nil {
+	if err := db.AutoMigrate(&models.User{}, &models.UserToken{}, &models.Role{}, &models.UserRole{}); err != nil {
 		t.Fatalf("auto migrate users: %v", err)
+	}
+	if err := db.Create(&models.Role{
+		Name:   services.TopicRoleNameUser,
+		Code:   "user",
+		Status: constants.StatusOk,
+	}).Error; err != nil {
+		t.Fatalf("create default user role: %v", err)
 	}
 	return db
 }
@@ -399,7 +450,8 @@ type userCreateResult struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Data    struct {
-		Password string `json:"password"`
+		Password string  `json:"password"`
+		RoleIds  []int64 `json:"roleIds"`
 	} `json:"data"`
 }
 

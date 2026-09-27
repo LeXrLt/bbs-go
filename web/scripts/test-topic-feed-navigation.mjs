@@ -112,10 +112,25 @@ assert.equal(
   true,
   "TopicFeedTabs should encode the selected role in the URL"
 )
-assert.equal(
-  indexRouteSource.includes("params: { cursor, roleName }"),
-  true,
+assert.match(
+  indexRouteSource,
+  /params:\s*\{[\s\S]*?cursor,[\s\S]*?roleName,[\s\S]*?\}/,
   "Home topic pagination should preserve the role filter"
+)
+assert.match(
+  indexRouteSource,
+  /clientLoader\(\{\s*request\s*\}[\s\S]*?loadHomeTopicListRouteData\(request\)/,
+  "Home client navigation should load the user-role topic feed"
+)
+assert.match(
+  loaderSource,
+  /loadHomeTopicListRouteData[\s\S]*?const roleName:\s*TopicRoleName\s*=\s*["']用户["'][\s\S]*?loadTopics\(\{\s*request,\s*roleName\s*\}\)/,
+  "Home topic data should always be filtered to the user role"
+)
+assert.match(
+  loaderSource,
+  /pathname\s*===\s*["']\/["'][\s\S]*?return loadHomeTopicListRouteData\(request\)/,
+  "The root loader should use the user-role topic feed"
 )
 assert.match(
   dynamicListSource,

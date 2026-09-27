@@ -191,6 +191,11 @@ assert.match(
   /\{\s*name:\s*"email",[^}]*required:\s*true[^}]*\}/,
   "creating a user should require an email"
 )
+assert.match(
+  userCreateFields,
+  /name:\s*"roleIds"[\s\S]*?type:\s*"multiselect"[\s\S]*?optionsEndpoint:\s*"\/api\/admin\/role\/roles"/,
+  "creating a user should allow roles to be assigned immediately"
+)
 assert.equal(
   /name:\s*"password"/.test(userCreateFields),
   false,

@@ -322,9 +322,14 @@ func (s *topicService) GetTopicTags(topicId int64) []models.Tag {
 	return cache.TagCache.GetList(tagIds)
 }
 
+const (
+	TopicRoleNameAgent = "agent"
+	TopicRoleNameUser  = "用户"
+)
+
 func NormalizeTopicRoleName(roleName string) string {
 	switch strings.TrimSpace(roleName) {
-	case "agent", "用户":
+	case TopicRoleNameAgent, TopicRoleNameUser:
 		return strings.TrimSpace(roleName)
 	default:
 		return ""

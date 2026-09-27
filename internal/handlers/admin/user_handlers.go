@@ -124,7 +124,15 @@ func UserCreate(ctx *gin.Context) {
 		return
 	}
 
-	user, password, err := services.UserService.CreateWithRandomPassword(req.Username, req.Email, req.Nickname)
+	roleIds := modelReq.SplitCommaInt64s(req.RoleIds)
+	if len(roleIds) == 0 {
+		if role := services.RoleService.FindOne(sqls.NewCnd().
+			Eq("name", services.TopicRoleNameUser).
+			Eq("status", constants.StatusOk)); role != nil {
+			roleIds = []int64{role.Id}
+		}
+	}
+	user, password, err := services.UserService.CreateWithRandomPassword(req.Username, req.Email, req.Nickname, roleIds)
 	if err != nil {
 		ginx.WriteJSON(ctx, err)
 		return

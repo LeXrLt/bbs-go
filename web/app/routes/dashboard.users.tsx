@@ -97,6 +97,15 @@ export default function DashboardUsersRoute() {
         label: dashboardData.label(t, "email"),
         required: true,
       },
+      {
+        name: "roleIds",
+        label: dashboardData.label(t, "roles"),
+        type: "multiselect",
+        optionsEndpoint: "/api/admin/role/roles",
+        optionLabel: (record) =>
+          String(record.name || record.code || record.id),
+        optionValue: (record) => record.id as number,
+      },
     ],
     formFields: [
       {

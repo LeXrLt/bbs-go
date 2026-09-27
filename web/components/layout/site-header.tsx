@@ -16,6 +16,7 @@ import {
   ListChecks,
   LogOut,
   Menu,
+  MessageCircleReply,
   Plus,
   Settings,
   User,
@@ -44,6 +45,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card"
 import {
   Sheet,
   SheetClose,
@@ -107,18 +113,53 @@ function CreateTopicButton({
   )
 }
 
-function MsgNotice({ count }: { count: number }) {
+function messageCountLabel(count: number) {
+  return count > 99 ? "99+" : String(count)
+}
+
+function MsgNotice({ count, t }: { count: number; t: TFunction }) {
+  const [open, setOpen] = React.useState(false)
+
   return (
-    <Link
-      href="/user/messages"
-      className="inline-flex h-8 w-8 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+    <HoverCard
+      open={open}
+      onOpenChange={setOpen}
+      openDelay={100}
+      closeDelay={150}
     >
-      {count > 0 ? (
-        <BellRing size={18} className="animate-swing" />
-      ) : (
-        <Bell size={18} />
-      )}
-    </Link>
+      <HoverCardTrigger asChild>
+        <Link
+          href="/user/messages"
+          aria-label={t("common.header.repliesToMe")}
+          onClick={() => setOpen(false)}
+          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-sm font-medium whitespace-nowrap ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+        >
+          {count > 0 ? (
+            <BellRing size={18} className="animate-swing" />
+          ) : (
+            <Bell size={18} />
+          )}
+        </Link>
+      </HoverCardTrigger>
+      <HoverCardContent align="end" className="w-52 p-2">
+        <Link
+          href="/user/messages"
+          onClick={() => setOpen(false)}
+          className="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:outline-none"
+        >
+          <MessageCircleReply
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="flex-1">{t("common.header.repliesToMe")}</span>
+          {count > 0 ? (
+            <span className="text-destructive-foreground inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[11px] leading-4 font-semibold tabular-nums">
+              {messageCountLabel(count)}
+            </span>
+          ) : null}
+        </Link>
+      </HoverCardContent>
+    </HoverCard>
   )
 }
 
@@ -562,7 +603,7 @@ export function SiteHeader() {
               placeholder={t("component.searchInput.placeholder")}
             />
             <CreateTopicButton config={config} t={t} />
-            {user ? <MsgNotice count={unreadMessageCount} /> : null}
+            {user ? <MsgNotice count={unreadMessageCount} t={t} /> : null}
             {user ? (
               <UserMenu
                 user={user}
