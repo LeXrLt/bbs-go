@@ -32,6 +32,12 @@ const dynamicListSource = readFileSync(
   "utf8"
 )
 
+assert.equal(
+  dynamicListSource.includes("HomeAside"),
+  false,
+  "Topic category and tag lists should not render the points/check-in sidebar"
+)
+
 assert.match(
   topicsNavSource,
   /categories\.filter\(\(node\)\s*=>\s*node\.id\s*>\s*0\)/,
