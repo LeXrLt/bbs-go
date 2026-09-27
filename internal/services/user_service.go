@@ -268,7 +268,7 @@ func (s *userService) SignUp(username, email, nickname, password, rePassword str
 
 // CreateWithRandomPassword creates an account for an administrator and returns
 // the generated plaintext password exactly once.
-func (s *userService) CreateWithRandomPassword(username, email, nickname string) (*models.User, string, error) {
+func (s *userService) CreateWithRandomPassword(username, email, nickname string, roleIds []int64) (*models.User, string, error) {
 	username = strings.TrimSpace(username)
 	email = strings.TrimSpace(email)
 	nickname = strings.TrimSpace(nickname)
@@ -307,7 +307,12 @@ func (s *userService) CreateWithRandomPassword(username, email, nickname string)
 		CreateTime: dates.NowTimestamp(),
 		UpdateTime: dates.NowTimestamp(),
 	}
-	if err := repositories.UserRepository.Create(sqls.DB(), user); err != nil {
+	if err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+		if err := repositories.UserRepository.Create(tx, user); err != nil {
+			return err
+		}
+		return updateUserRoles(tx, user.Id, roleIds)
+	}); err != nil {
 		if s.isUsernameExists(username) {
 			return nil, "", errors.New(locales.Getf("user.username_occupied", username))
 		}
@@ -315,6 +320,11 @@ func (s *userService) CreateWithRandomPassword(username, email, nickname string)
 			return nil, "", errors.New(locales.Getf("user.email_occupied", email))
 		}
 		return nil, "", err
+	}
+	cache.UserCache.Invalidate(user.Id)
+	user = repositories.UserRepository.Get(sqls.DB(), user.Id)
+	if user == nil {
+		return nil, "", errors.New("created user not found")
 	}
 	search.UpdateUserIndex(user)
 	return user, password, nil

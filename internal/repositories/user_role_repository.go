@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"bbs-go/internal/models"
+	"bbs-go/internal/models/constants"
 
 	"bbs-go/internal/pkg/params"
 
@@ -16,6 +17,11 @@ func newUserRoleRepository() *userRoleRepository {
 }
 
 type userRoleRepository struct {
+}
+
+type userActiveRoleName struct {
+	UserId   int64  `gorm:"column:user_id"`
+	RoleName string `gorm:"column:role_name"`
 }
 
 func (r *userRoleRepository) Get(db *gorm.DB, id int64) *models.UserRole {
@@ -66,6 +72,29 @@ func (r *userRoleRepository) FindPageByCnd(db *gorm.DB, cnd *sqls.Cnd) (list []m
 func (r *userRoleRepository) FindBySql(db *gorm.DB, sqlStr string, paramArr ...interface{}) (list []models.UserRole) {
 	db.Raw(sqlStr, paramArr...).Scan(&list)
 	return
+}
+
+func (r *userRoleRepository) GetActiveRoleNamesByUserIDs(db *gorm.DB, userIds []int64, roleNames []string) map[int64][]string {
+	if len(userIds) == 0 || len(roleNames) == 0 {
+		return nil
+	}
+
+	var rows []userActiveRoleName
+	if err := db.Table("t_user_role AS user_role").
+		Select("user_role.user_id, role.name AS role_name").
+		Joins("JOIN t_role AS role ON role.id = user_role.role_id").
+		Where("user_role.user_id IN ?", userIds).
+		Where("role.name IN ?", roleNames).
+		Where("role.status = ?", constants.StatusOk).
+		Scan(&rows).Error; err != nil {
+		return nil
+	}
+
+	result := make(map[int64][]string, len(rows))
+	for _, row := range rows {
+		result[row.UserId] = append(result[row.UserId], row.RoleName)
+	}
+	return result
 }
 
 func (r *userRoleRepository) CountBySql(db *gorm.DB, sqlStr string, paramArr ...interface{}) (count int64) {

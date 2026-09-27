@@ -366,7 +366,12 @@ func TopicRecentlikes(ctx *gin.Context) {
 
 func TopicRecent(ctx *gin.Context) {
 	topics := services.TopicService.Find(sqls.NewCnd().Where("status = ?", constants.StatusOk).Desc("id").Limit(10))
-	ginx.WriteJSON(ctx, render.BuildSimpleTopics(ctx, topics))
+	unreadAfterByRole, err := topicUnreadAfters(common.GetCurrentUser(ctx), "", -1, false)
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+	ginx.WriteJSON(ctx, render.BuildSimpleTopicsWithRoleUnread(ctx, topics, unreadAfterByRole))
 
 }
 
@@ -378,7 +383,12 @@ func TopicUserTopics(ctx *gin.Context) {
 	}
 	cursor := params.FormValueInt64Default(ctx, "cursor", 0)
 	topics, cursor, hasMore := services.TopicService.GetUserTopics(userId, cursor)
-	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopics(ctx, topics), strconv.FormatInt(cursor, 10), hasMore))
+	unreadAfterByRole, err := topicUnreadAfters(common.GetCurrentUser(ctx), "", -1, false)
+	if err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopicsWithRoleUnread(ctx, topics, unreadAfterByRole), strconv.FormatInt(cursor, 10), hasMore))
 
 }
 
@@ -450,18 +460,11 @@ func TopicTopics(ctx *gin.Context) {
 	}
 	if categoryId != constants.CategoryIdNewest {
 		roleName = ""
-		roleAfter = -1
-	} else if roleName == "" {
-		roleAfter = -1
-	} else if !roleAfterProvided && user != nil {
-		baseline, found, baselineErr := services.TopicUnreadBaselineService.Get(user.Id, roleName)
-		if baselineErr != nil {
-			ginx.WriteJSON(ctx, baselineErr)
-			return
-		}
-		if found {
-			roleAfter = baseline
-		}
+	}
+	unreadAfterByRole, unreadBaselineErr := topicUnreadAfters(user, roleName, roleAfter, roleAfterProvided)
+	if unreadBaselineErr != nil {
+		ginx.WriteJSON(ctx, unreadBaselineErr)
+		return
 	}
 
 	var temp []models.Topic
@@ -477,8 +480,35 @@ func TopicTopics(ctx *gin.Context) {
 	list := common.Distinct(temp, func(t models.Topic) any {
 		return t.Id
 	})
-	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopicsWithUnread(ctx, list, roleAfter), strconv.FormatInt(cursor, 10), hasMore))
+	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopicsWithRoleUnread(ctx, list, unreadAfterByRole), strconv.FormatInt(cursor, 10), hasMore))
 
+}
+
+func topicUnreadAfters(user *models.User, roleName string, roleAfter int64, roleAfterProvided bool) (map[string]int64, error) {
+	if user == nil {
+		return nil, nil
+	}
+
+	roleNames := []string{services.TopicRoleNameAgent, services.TopicRoleNameUser}
+	if roleName != "" {
+		roleNames = []string{roleName}
+	}
+
+	result := make(map[string]int64, len(roleNames))
+	for _, currentRoleName := range roleNames {
+		if currentRoleName == roleName && roleAfterProvided {
+			result[currentRoleName] = roleAfter
+			continue
+		}
+		baseline, found, err := services.TopicUnreadBaselineService.Get(user.Id, currentRoleName)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			result[currentRoleName] = baseline
+		}
+	}
+	return result, nil
 }
 
 func TopicAcceptAnswer(ctx *gin.Context) {
@@ -530,7 +560,12 @@ func TopicTagTopics(ctx *gin.Context) {
 		return
 	}
 	topics, cursor, hasMore := services.TopicService.GetTagTopics(tagId, cursor)
-	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopics(ctx, topics), strconv.FormatInt(cursor, 10), hasMore))
+	unreadAfterByRole, unreadBaselineErr := topicUnreadAfters(common.GetCurrentUser(ctx), "", -1, false)
+	if unreadBaselineErr != nil {
+		ginx.WriteJSON(ctx, unreadBaselineErr)
+		return
+	}
+	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildSimpleTopicsWithRoleUnread(ctx, topics, unreadAfterByRole), strconv.FormatInt(cursor, 10), hasMore))
 
 }
 

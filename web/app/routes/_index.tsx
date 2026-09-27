@@ -3,7 +3,6 @@ import { useLoaderData } from "react-router"
 import { EmptyState } from "@/components/common/empty-state"
 import { LoadMore } from "@/components/common/load-more"
 import { MainShell } from "@/components/layout/main-shell"
-import { DailyReportPage } from "@/components/topic/daily-report-page"
 import { TopicFeedTabs } from "@/components/topic/topic-feed-tabs"
 import { TopicListItem } from "@/components/topic/topic-list-item"
 import { TopicsNavContent } from "@/components/topic/topics-nav-content"
@@ -14,15 +13,14 @@ import { rootDataFromMatches, siteHomeMeta } from "@/lib/seo"
 import { useDocumentTitle } from "@/lib/use-document-title"
 
 import {
-  loadDailyReportRouteData,
-  type DailyReportRouteData,
+  loadHomeTopicListRouteData,
   type TopicListRouteData,
 } from "../route-helpers/loaders"
 
 export { loader } from "../route-helpers/loaders"
 
 export async function clientLoader({ request }: { request: Request }) {
-  return loadDailyReportRouteData(request)
+  return loadHomeTopicListRouteData(request)
 }
 
 export function meta({
@@ -96,6 +94,5 @@ export function TopicListRoute({ title }: { title?: string }) {
 }
 
 export default function IndexRoute() {
-  const data = useLoaderData() as DailyReportRouteData
-  return <DailyReportPage data={data} />
+  return <TopicListRoute />
 }

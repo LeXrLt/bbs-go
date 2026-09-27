@@ -14,6 +14,7 @@ import (
 	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/config"
 	"bbs-go/internal/pkg/idcodec"
+	"bbs-go/internal/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -175,6 +176,40 @@ func TestTopicNewStatusReturnsFailureWhenStatusQueryFails(t *testing.T) {
 	}
 	if result.Success || result.Message == "" {
 		t.Fatalf("query error must return API failure, got %s", w.Body.String())
+	}
+}
+
+func TestTopicUnreadAftersLoadsBothRolesForMixedLists(t *testing.T) {
+	db := setupTopicHandlerCategoryTestDB(t)
+	if err := db.Create(&[]models.TopicUnreadBaseline{
+		{UserId: 7, RoleName: services.TopicRoleNameAgent, EventId: 11, CreateTime: 1},
+		{UserId: 7, RoleName: services.TopicRoleNameUser, EventId: 22, CreateTime: 1},
+	}).Error; err != nil {
+		t.Fatalf("create unread baselines: %v", err)
+	}
+
+	baselines, err := topicUnreadAfters(&models.User{Model: models.Model{Id: 7}}, "", -1, false)
+	if err != nil {
+		t.Fatalf("load unread baselines: %v", err)
+	}
+	if baselines[services.TopicRoleNameAgent] != 11 || baselines[services.TopicRoleNameUser] != 22 {
+		t.Fatalf("unexpected mixed-list baselines: %#v", baselines)
+	}
+}
+
+func TestTopicUnreadAftersUsesExplicitBoundaryForRoleFilter(t *testing.T) {
+	setupTopicHandlerCategoryTestDB(t)
+	baselines, err := topicUnreadAfters(
+		&models.User{Model: models.Model{Id: 8}},
+		services.TopicRoleNameUser,
+		15,
+		true,
+	)
+	if err != nil {
+		t.Fatalf("load explicit unread baseline: %v", err)
+	}
+	if len(baselines) != 1 || baselines[services.TopicRoleNameUser] != 15 {
+		t.Fatalf("unexpected filtered-list baselines: %#v", baselines)
 	}
 }
 

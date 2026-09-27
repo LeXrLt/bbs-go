@@ -154,6 +154,17 @@ export async function loadTopicListRouteData(
   return { topics, categories, roleName, roleAfter }
 }
 
+export async function loadHomeTopicListRouteData(
+  request?: Request
+): Promise<TopicListRouteData> {
+  const roleName: TopicRoleName = "用户"
+  const [topics, categories] = await Promise.all([
+    loadTopics({ request, roleName }),
+    loadCategories(request),
+  ])
+  return { topics, categories, roleName }
+}
+
 export async function loadDailyReportRouteData(
   request?: Request,
   initialCategory?: Category
@@ -253,7 +264,7 @@ export async function loader({
   const pathname = new URL(request.url).pathname
 
   if (pathname === "/") {
-    return loadDailyReportRouteData(request)
+    return loadHomeTopicListRouteData(request)
   }
   if (pathname === "/topics") {
     return loadTopicListRouteData(request)
