@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useRouter } from "@/lib/router/navigation"
 import { useActionState } from "react"
+import { Check, Copy } from "lucide-react"
 
 import {
   requestEmailVerifyAction,
@@ -20,6 +21,7 @@ import {
 } from "@/components/common/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { apiFetch } from "@/lib/api/client"
 import type { BindInfo, SiteConfig, UserSummary } from "@/lib/api/types"
@@ -32,6 +34,24 @@ const initialState: UserActionState = { ok: false }
 type DialogKey = "username" | "email" | "setPassword" | "updatePassword" | null
 type BindDialogKey = "wx" | "google" | "github" | null
 type BindProvider = "wx" | "google" | "github"
+
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const fallback = document.createElement("textarea")
+  fallback.value = text
+  fallback.setAttribute("readonly", "")
+  fallback.style.position = "fixed"
+  fallback.style.opacity = "0"
+  document.body.appendChild(fallback)
+  fallback.select()
+  const copied = document.execCommand("copy")
+  fallback.remove()
+  if (!copied) throw new Error("Copy failed")
+}
 
 function getBindInfo(provider: BindProvider) {
   const path =
@@ -47,10 +67,12 @@ export function AccountSettings({
   user: initialUser,
   config,
   bindInfo,
+  skillSetup,
 }: {
   user?: UserSummary
   config: SiteConfig | null
   bindInfo: { wx?: BindInfo; google?: BindInfo; github?: BindInfo }
+  skillSetup?: { bbsToken: string; baseURL: string }
 }) {
   const { t } = useI18n()
   const requiredUser = useRequiredUser()
@@ -61,6 +83,8 @@ export function AccountSettings({
   const [currentBindInfo, setCurrentBindInfo] = React.useState(bindInfo)
   const [confirmState, setConfirmState] =
     React.useState<ConfirmDialogState>(null)
+  const skillPrompt = buildSkillPrompt(skillSetup)
+  const [copied, setCopied] = React.useState(false)
 
   React.useEffect(() => {
     const providers: BindProvider[] = []
@@ -248,6 +272,21 @@ export function AccountSettings({
             unbindText={t("user.profile.account.unbind")}
           />
         ) : null}
+        <SkillInstallPrompt
+          prompt={skillPrompt}
+          copied={copied}
+          onCopy={async () => {
+            try {
+              await copyText(skillPrompt)
+              setCopied(true)
+              toast.success(t("user.profile.account.skillPromptCopied"))
+              window.setTimeout(() => setCopied(false), 2000)
+            } catch {
+              toast.error(t("user.profile.account.skillPromptCopyFailed"))
+            }
+          }}
+          t={t}
+        />
       </div>
       {dialog ? (
         <AccountDialog
@@ -269,6 +308,71 @@ export function AccountSettings({
         }}
       />
     </>
+  )
+}
+
+function buildSkillPrompt(skillSetup?: {
+  bbsToken: string
+  baseURL: string
+}) {
+  const token = skillSetup?.bbsToken || "<当前登录 Cookie 中的 bbsgo_token>"
+  const baseURL = skillSetup?.baseURL || "<BBS 地址>"
+  return `请安装并初始化 BBS 阅读 skill：
+
+1. 安装 skill：
+git clone https://github.com/LeXrLt/bbs-skill
+
+2. 在 skill 根目录创建 .env 文件，并写入以下配置：
+BBS_COOKIE=bbsgo_token=${token}
+BBS_BASE_URL=${baseURL}
+
+完成初始化后，使用该 skill 阅读 BBS 内容。`
+}
+
+function SkillInstallPrompt({
+  prompt,
+  copied,
+  onCopy,
+  t,
+}: {
+  prompt: string
+  copied: boolean
+  onCopy: () => void
+  t: TFunction
+}) {
+  return (
+    <div className="mt-6 border-t border-border pt-5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">
+            {t("user.profile.account.skillPromptTitle")}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t("user.profile.account.skillPromptDescription")}
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onCopy}
+          title={t("user.profile.account.skillPromptCopy")}
+        >
+          {copied ? <Check /> : <Copy />}
+          <span>
+            {copied
+              ? t("user.profile.account.skillPromptCopied")
+              : t("user.profile.account.skillPromptCopy")}
+          </span>
+        </Button>
+      </div>
+      <Textarea
+        readOnly
+        value={prompt}
+        aria-label={t("user.profile.account.skillPromptTitle")}
+        className="min-h-56 resize-y font-mono text-xs leading-5"
+      />
+    </div>
   )
 }
 

@@ -7,17 +7,59 @@ import { ProfileShell } from "@/components/user/profile-shell"
 import { useI18n } from "@/lib/i18n/provider"
 import { noindexRouteMeta } from "@/lib/seo"
 import { useDocumentTitle } from "@/lib/use-document-title"
+import { AUTH_COOKIE } from "@/lib/cookies"
+import { rootDataContext } from "../route-helpers/context"
+import { useLoaderData, type RouterContextProvider } from "react-router"
 
 import { requireUser, requireUserClient } from "../route-helpers/auth"
 
-export async function loader(args: { request: Request }) {
-  await requireUser(args)
-  return null
+function readCookie(request: Request, name: string) {
+  const cookieHeader = request.headers.get("cookie") || ""
+  for (const part of cookieHeader.split(";")) {
+    const separator = part.indexOf("=")
+    if (separator < 0) continue
+    const key = part.slice(0, separator).trim()
+    if (key !== name) continue
+    const value = part.slice(separator + 1).trim()
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return value
+    }
+  }
+  return ""
 }
 
-export async function clientLoader(args: { request: Request }) {
-  await requireUserClient(args)
-  return null
+type AccountRouteData = {
+  bbsToken: string
+  baseURL: string
+}
+
+export async function loader({
+  request,
+  context,
+}: {
+  request: Request
+  context?: RouterContextProvider
+}): Promise<AccountRouteData> {
+  await requireUser({ request, context })
+  const rootDataProvider = context?.get(rootDataContext)
+  const rootData = rootDataProvider ? await rootDataProvider() : null
+  return {
+    bbsToken: readCookie(request, AUTH_COOKIE),
+    baseURL: rootData?.config?.baseURL || new URL(request.url).origin,
+  }
+}
+
+export async function clientLoader({
+  request,
+  serverLoader,
+}: {
+  request: Request
+  serverLoader: <T = unknown>() => Promise<T>
+}) {
+  await requireUserClient({ request })
+  return serverLoader<AccountRouteData>()
 }
 
 export function meta({
@@ -32,6 +74,7 @@ export default function AccountRoute() {
   const { t } = useI18n()
   useDocumentTitle(t("user.profile.account.title"))
   const { config, currentUser } = useAppState()
+  const routeData = useLoaderData<typeof loader>()
   return (
     <RequireUser initialUser={currentUser} redirectPath="/user/profile/account">
       <ProfileShell active="account" t={t}>
@@ -43,6 +86,7 @@ export default function AccountRoute() {
             user={currentUser || undefined}
             config={config}
             bindInfo={{}}
+            skillSetup={routeData}
           />
         </WidgetCard>
       </ProfileShell>
