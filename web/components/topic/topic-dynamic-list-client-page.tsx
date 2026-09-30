@@ -5,7 +5,6 @@ import { useSearchParams } from "react-router-dom"
 
 import { EmptyState } from "@/components/common/empty-state"
 import { LoadMore } from "@/components/common/load-more"
-import { HomeAside } from "@/components/layout/home-aside"
 import { MainShell } from "@/components/layout/main-shell"
 import { PageLoading } from "@/components/common/page-state"
 import { TopicFeedTabs } from "@/components/topic/topic-feed-tabs"
@@ -61,7 +60,7 @@ export function TopicTagClientPage({
   }
 
   return (
-    <MainShell aside={<HomeAside />}>
+    <MainShell>
       <div className="topics-wrapper">
         <TopicsNavContent initialCategories={initialData?.categories || []} />
         <div className="topics-main">
@@ -205,7 +204,7 @@ export function NodeTopicClientPage({
   }
 
   return (
-    <MainShell aside={<HomeAside />}>
+    <MainShell>
       <div className="topics-wrapper">
         <TopicsNavContent
           initialCategories={initialData?.categories || []}
