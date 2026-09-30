@@ -117,8 +117,33 @@ function messageCountLabel(count: number) {
   return count > 99 ? "99+" : String(count)
 }
 
+function MessageCountBadge({
+  count,
+  overlay = false,
+}: {
+  count: number
+  overlay?: boolean
+}) {
+  if (count <= 0) return null
+
+  return (
+    <span
+      className={cn(
+        "text-destructive-foreground inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[11px] leading-4 font-semibold tabular-nums",
+        overlay &&
+          "pointer-events-none absolute -top-1 -right-1 z-20 h-4 min-w-4 px-1 py-0 text-[10px] leading-4"
+      )}
+      aria-hidden="true"
+    >
+      {messageCountLabel(count)}
+    </span>
+  )
+}
+
 function MsgNotice({ count, t }: { count: number; t: TFunction }) {
   const [open, setOpen] = React.useState(false)
+  const repliesLabel = t("common.header.repliesToMe")
+  const label = count > 0 ? `${repliesLabel}: ${count}` : repliesLabel
 
   return (
     <HoverCard
@@ -130,15 +155,17 @@ function MsgNotice({ count, t }: { count: number; t: TFunction }) {
       <HoverCardTrigger asChild>
         <Link
           href="/user/messages"
-          aria-label={t("common.header.repliesToMe")}
+          aria-label={label}
+          title={label}
           onClick={() => setOpen(false)}
-          className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-sm font-medium whitespace-nowrap ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+          className="relative inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-sm font-medium whitespace-nowrap ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
         >
           {count > 0 ? (
             <BellRing size={18} className="animate-swing" />
           ) : (
             <Bell size={18} />
           )}
+          <MessageCountBadge count={count} overlay />
         </Link>
       </HoverCardTrigger>
       <HoverCardContent align="end" className="w-52 p-2">
@@ -151,12 +178,8 @@ function MsgNotice({ count, t }: { count: number; t: TFunction }) {
             className="size-4 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
-          <span className="flex-1">{t("common.header.repliesToMe")}</span>
-          {count > 0 ? (
-            <span className="text-destructive-foreground inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[11px] leading-4 font-semibold tabular-nums">
-              {messageCountLabel(count)}
-            </span>
-          ) : null}
+          <span className="flex-1">{repliesLabel}</span>
+          <MessageCountBadge count={count} />
         </Link>
       </HoverCardContent>
     </HoverCard>

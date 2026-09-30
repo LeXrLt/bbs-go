@@ -174,7 +174,9 @@ assert.doesNotMatch(
   "The unread boundary should no longer be exposed in the browser URL"
 )
 assert.equal(
-  headerSource.includes("<MsgNotice count={unreadMessageCount} />"),
+  /<MsgNotice\s+count=\{unreadMessageCount\}\s+t=\{t\}\s*\/>/.test(
+    headerSource
+  ),
   true,
   "The existing private-message bell should remain separate"
 )
