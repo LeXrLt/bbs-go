@@ -10,8 +10,16 @@ import { TopicAttachmentField } from "@/components/topic/topic-attachment-field"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { apiFetch } from "@/lib/api/client"
+import {
+  composerDraftKey,
+  isDraftRecord,
+  normalizeDraftAttachmentList,
+  normalizeDraftStringList,
+  useComposerDraft,
+} from "@/lib/composer-draft"
 import type { SiteConfig, TopicAttachment, Category } from "@/lib/api/types"
 import type { TopicEditData } from "@/lib/api/topics"
+import { useCurrentUser } from "@/components/app/app-provider"
 import { useI18n } from "@/lib/i18n/provider"
 import {
   filterCategoryTree,
@@ -29,6 +37,11 @@ type TopicEditFormState = {
   contentType: "html" | "markdown"
   hideContent: string
   tags: string[]
+}
+
+type TopicEditDraft = {
+  form: TopicEditFormState
+  attachmentList: TopicAttachment[]
 }
 
 function categoryTypeMatches(topicType: number) {
@@ -49,6 +62,43 @@ function normalizeEditData(topic: TopicEditData): TopicEditFormState {
   }
 }
 
+function normalizeTopicEditDraft(
+  value: unknown,
+  initialValue: TopicEditDraft
+): TopicEditDraft | null {
+  if (!isDraftRecord(value) || !isDraftRecord(value.form)) {
+    return null
+  }
+
+  const source = value.form
+  const categoryId = Number(source.categoryId)
+  return {
+    form: {
+      ...initialValue.form,
+      id: initialValue.form.id,
+      type: initialValue.form.type,
+      categoryId: Number.isFinite(categoryId)
+        ? categoryId
+        : initialValue.form.categoryId,
+      title: typeof source.title === "string" ? source.title : "",
+      content: typeof source.content === "string" ? source.content : "",
+      contentType: source.contentType === "markdown" ? "markdown" : "html",
+      hideContent:
+        typeof source.hideContent === "string" ? source.hideContent : "",
+      tags: normalizeDraftStringList(source.tags),
+    },
+    attachmentList: normalizeDraftAttachmentList(value.attachmentList),
+  }
+}
+
+function sameTopicEditDraft(left: TopicEditDraft, right: TopicEditDraft) {
+  return (
+    JSON.stringify(left.form) === JSON.stringify(right.form) &&
+    JSON.stringify(left.attachmentList.map((item) => item.id)) ===
+      JSON.stringify(right.attachmentList.map((item) => item.id))
+  )
+}
+
 export function TopicEditForm({
   topic,
   config,
@@ -59,17 +109,57 @@ export function TopicEditForm({
   categories: Category[]
 }) {
   const router = useRouter()
+  const currentUser = useCurrentUser()
   const { t } = useI18n()
   const { catchError, msgWarning } = useToastActions()
   const lastSubmitAtRef = React.useRef(0)
   const [publishing, setPublishing] = React.useState(false)
   const [attachmentUploading, setAttachmentUploading] = React.useState(false)
-  const [attachmentList, setAttachmentList] = React.useState<TopicAttachment[]>(
-    () => (Array.isArray(topic.attachments) ? topic.attachments : [])
+  const initialDraft = React.useMemo<TopicEditDraft>(
+    () => ({
+      form: normalizeEditData(topic),
+      attachmentList: Array.isArray(topic.attachments) ? topic.attachments : [],
+    }),
+    [topic]
   )
-  const [form, setForm] = React.useState<TopicEditFormState>(() =>
-    normalizeEditData(topic)
+  const draftKey = React.useMemo(
+    () => composerDraftKey("topic-edit", currentUser?.id, topic.id),
+    [currentUser?.id, topic.id]
   )
+  const isDraftEmpty = React.useCallback(
+    (value: TopicEditDraft) => sameTopicEditDraft(value, initialDraft),
+    [initialDraft]
+  )
+  const draft = useComposerDraft({
+    key: draftKey,
+    initialValue: initialDraft,
+    deserialize: React.useCallback(
+      (value: unknown) => normalizeTopicEditDraft(value, initialDraft),
+      [initialDraft]
+    ),
+    isEmpty: isDraftEmpty,
+  })
+  const form = draft.value.form
+  const attachmentList = draft.value.attachmentList
+
+  function updateForm(next: Partial<TopicEditFormState>) {
+    draft.setValue((current) => ({
+      ...current,
+      form: { ...current.form, ...next },
+    }))
+  }
+
+  function setAttachmentList(
+    next:
+      | TopicAttachment[]
+      | ((current: TopicAttachment[]) => TopicAttachment[])
+  ) {
+    draft.setValue((current) => ({
+      ...current,
+      attachmentList:
+        typeof next === "function" ? next(current.attachmentList) : next,
+    }))
+  }
   const availableNodes = React.useMemo(
     () => filterCategoryTree(categories, categoryTypeMatches(form.type)),
     [form.type, categories]
@@ -77,10 +167,6 @@ export function TopicEditForm({
   const effectiveCategoryId = hasCategory(availableNodes, form.categoryId)
     ? form.categoryId
     : getFirstCategoryId(availableNodes)
-
-  function updateForm(next: Partial<TopicEditFormState>) {
-    setForm((current) => ({ ...current, ...next }))
-  }
 
   async function submit() {
     const now = Date.now()
@@ -108,6 +194,7 @@ export function TopicEditForm({
             form.type === 0 ? attachmentList.map((item) => item.id) : [],
         },
       })
+      draft.clear()
       msg({
         message: t("pages.topic.edit.success"),
         onClose() {
@@ -124,6 +211,11 @@ export function TopicEditForm({
     <div className="publish-form">
       <div className="form-title">
         <div className="form-title-name">{t("pages.topic.edit.title")}</div>
+        {draft.restored ? (
+          <span className="text-xs text-muted-foreground" role="status">
+            {t("component.composerDraft.restored")}
+          </span>
+        ) : null}
       </div>
 
       <div className="field">

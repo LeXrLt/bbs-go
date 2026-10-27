@@ -1021,6 +1021,9 @@ const enUS = {
       switchConfirm:
         "Switching to {mode} will clear the current content. Continue?",
     },
+    composerDraft: {
+      restored: "Unpublished draft restored. Changes are saved automatically.",
+    },
     textEditor: {
       placeholder: "Write your content",
       publish: "Publish",

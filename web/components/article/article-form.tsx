@@ -6,10 +6,22 @@ import { Plus, Trash2 } from "lucide-react"
 
 import { TagInput } from "@/components/common/tag-input"
 import { ContentEditor } from "@/components/editor/content-editor"
+import { useCurrentUser } from "@/components/app/app-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { apiFetch, toFormData } from "@/lib/api/client"
-import type { Article, ArticleEditForm, ImageInfo, SiteConfig } from "@/lib/api/types"
+import {
+  composerDraftKey,
+  isDraftRecord,
+  normalizeDraftImageList,
+  useComposerDraft,
+} from "@/lib/composer-draft"
+import type {
+  Article,
+  ArticleEditForm,
+  ImageInfo,
+  SiteConfig,
+} from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n/provider"
 import { msg, useToastActions } from "@/lib/toast"
 
@@ -24,8 +36,39 @@ type ArticleFormState = {
   cover: ImageInfo[]
 }
 
+function normalizeArticleDraft(value: unknown): ArticleFormState | null {
+  if (!isDraftRecord(value)) {
+    return null
+  }
+
+  return {
+    title: typeof value.title === "string" ? value.title : "",
+    content: typeof value.content === "string" ? value.content : "",
+    tags: Array.isArray(value.tags)
+      ? value.tags.filter((item): item is string => typeof item === "string")
+      : [],
+    cover: normalizeDraftImageList(value.cover),
+  }
+}
+
+function isArticleDraftEmpty(value: ArticleFormState) {
+  return !(
+    value.title.trim() ||
+    value.content.trim() ||
+    value.tags.length ||
+    value.cover.length
+  )
+}
+
+function sameArticleDraft(left: ArticleFormState, right: ArticleFormState) {
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
 function isSameTags(left: string[], right: string[]) {
-  return left.length === right.length && left.every((item, index) => item === right[index])
+  return (
+    left.length === right.length &&
+    left.every((item, index) => item === right[index])
+  )
 }
 
 async function uploadImage(file: File) {
@@ -63,7 +106,13 @@ function CoverUpload({
     setUploading(true)
     try {
       const uploaded = await uploadImage(file)
-      onChange([{ ...uploaded, name: uploaded.name || file.name, size: uploaded.size || file.size }])
+      onChange([
+        {
+          ...uploaded,
+          name: uploaded.name || file.name,
+          size: uploaded.size || file.size,
+        },
+      ])
     } catch (error) {
       catchError(error)
     } finally {
@@ -75,11 +124,21 @@ function CoverUpload({
   return (
     <div className="flex flex-wrap gap-2.5">
       {value.map((image, index) => (
-        <div key={`${image.url || image.preview || index}`} className="group relative h-[120px] w-[120px] overflow-hidden rounded-sm border">          <img src={image.url || image.preview} alt="" className="h-full w-full object-cover" />
+        <div
+          key={`${image.url || image.preview || index}`}
+          className="group relative h-[120px] w-[120px] overflow-hidden rounded-sm border"
+        >
+          <img
+            src={image.url || image.preview}
+            alt=""
+            className="h-full w-full object-cover"
+          />
           <button
             type="button"
             className="absolute bottom-0 left-0 hidden h-5 w-full items-center justify-center bg-black/30 text-white group-hover:flex"
-            onClick={() => onChange(value.filter((_, itemIndex) => itemIndex !== index))}
+            onClick={() =>
+              onChange(value.filter((_, itemIndex) => itemIndex !== index))
+            }
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -93,10 +152,18 @@ function CoverUpload({
           onClick={() => inputRef.current?.click()}
         >
           <Plus className="h-[18px] w-[18px]" />
-          <span className="text-sm font-medium">{uploading ? t("component.imageUpload.uploading") : label}</span>
+          <span className="text-sm font-medium">
+            {uploading ? t("component.imageUpload.uploading") : label}
+          </span>
         </button>
       ) : null}
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={onFileChange} />
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onFileChange}
+      />
     </div>
   )
 }
@@ -111,18 +178,45 @@ export function ArticleForm({
   initialArticle?: ArticleEditForm | null
 }) {
   const router = useRouter()
+  const currentUser = useCurrentUser()
   const { t } = useI18n()
   const { catchError } = useToastActions()
   const [publishing, setPublishing] = React.useState(false)
-  const [form, setForm] = React.useState<ArticleFormState>({
-    title: initialArticle?.title || "",
-    content: initialArticle?.content || "",
-    tags: initialArticle?.tags || [],
-    cover: initialArticle?.cover ? [initialArticle.cover] : [],
+  const initialForm = React.useMemo<ArticleFormState>(
+    () => ({
+      title: initialArticle?.title || "",
+      content: initialArticle?.content || "",
+      tags: initialArticle?.tags || [],
+      cover: initialArticle?.cover ? [initialArticle.cover] : [],
+    }),
+    [initialArticle]
+  )
+  const draftKey = React.useMemo(
+    () =>
+      composerDraftKey(
+        mode === "create" ? "article-create" : "article-edit",
+        currentUser?.id,
+        mode === "edit" ? initialArticle?.id : undefined
+      ),
+    [currentUser?.id, initialArticle?.id, mode]
+  )
+  const isDraftEmpty = React.useCallback(
+    (value: ArticleFormState) => sameArticleDraft(value, initialForm),
+    [initialForm]
+  )
+  const draft = useComposerDraft({
+    key: draftKey,
+    initialValue: initialForm,
+    deserialize: normalizeArticleDraft,
+    isEmpty:
+      mode === "create"
+        ? isArticleDraftEmpty
+        : isDraftEmpty,
   })
+  const form = draft.value
 
   function updateForm(next: Partial<ArticleFormState>) {
-    setForm((current) => ({ ...current, ...next }))
+    draft.setValue((current) => ({ ...current, ...next }))
   }
 
   async function submit() {
@@ -145,6 +239,7 @@ export function ArticleForm({
           method: "POST",
           body,
         })
+        draft.clear()
         msg({
           message: t("pages.article.create.success"),
           onClose() {
@@ -152,10 +247,14 @@ export function ArticleForm({
           },
         })
       } else if (initialArticle?.id) {
-        await apiFetch<{ articleId: number }>(`/api/article/edit/${initialArticle.id}`, {
-          method: "POST",
-          body,
-        })
+        await apiFetch<{ articleId: number }>(
+          `/api/article/edit/${initialArticle.id}`,
+          {
+            method: "POST",
+            body,
+          }
+        )
+        draft.clear()
         msg({
           message: t("pages.article.edit.editSuccess"),
           onClose() {
@@ -169,15 +268,32 @@ export function ArticleForm({
     }
   }
 
-  const titleKey = mode === "create" ? "pages.article.create.title" : "pages.article.edit.title"
-  const titlePlaceholderKey = mode === "create" ? "pages.article.create.titlePlaceholder" : "pages.article.edit.titlePlaceholder"
-  const contentPlaceholderKey = mode === "create" ? "pages.article.create.contentPlaceholder" : "pages.article.edit.contentPlaceholder"
-  const submitKey = mode === "create" ? "pages.article.create.publishBtn" : "pages.article.edit.submitBtn"
+  const titleKey =
+    mode === "create"
+      ? "pages.article.create.title"
+      : "pages.article.edit.title"
+  const titlePlaceholderKey =
+    mode === "create"
+      ? "pages.article.create.titlePlaceholder"
+      : "pages.article.edit.titlePlaceholder"
+  const contentPlaceholderKey =
+    mode === "create"
+      ? "pages.article.create.contentPlaceholder"
+      : "pages.article.edit.contentPlaceholder"
+  const submitKey =
+    mode === "create"
+      ? "pages.article.create.publishBtn"
+      : "pages.article.edit.submitBtn"
 
   return (
     <div className="publish-form rounded-lg bg-background p-4">
       <div className="mb-4 border-b pb-2">
         <div className="text-xl font-semibold">{t(titleKey)}</div>
+        {draft.restored ? (
+          <span className="text-xs text-muted-foreground" role="status">
+            {t("component.composerDraft.restored")}
+          </span>
+        ) : null}
       </div>
       <div className="mb-4">
         <Input
@@ -210,12 +326,18 @@ export function ArticleForm({
       </div>
       {mode === "create" ? (
         <div className="mb-4">
-          <CoverUpload value={form.cover} label={t("pages.article.create.cover")} onChange={(cover) => updateForm({ cover })} />
+          <CoverUpload
+            value={form.cover}
+            label={t("pages.article.create.cover")}
+            onChange={(cover) => updateForm({ cover })}
+          />
         </div>
       ) : null}
       <div className="pt-2">
         <Button type="button" disabled={publishing} onClick={submit}>
-          {publishing && mode === "create" ? t("pages.article.create.publishing") : t(submitKey)}
+          {publishing && mode === "create"
+            ? t("pages.article.create.publishing")
+            : t(submitKey)}
         </Button>
       </div>
     </div>

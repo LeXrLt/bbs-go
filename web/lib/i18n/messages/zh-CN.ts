@@ -1002,6 +1002,9 @@ const zhCN = {
       markdown: "Markdown",
       switchConfirm: "切换到{mode}会清空当前内容，是否继续？",
     },
+    composerDraft: {
+      restored: "已恢复未发布草稿，内容会自动保存",
+    },
     textEditor: {
       placeholder: "请输入您要发表的内容",
       publish: "发布",

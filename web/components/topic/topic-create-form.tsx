@@ -24,6 +24,14 @@ import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiFetch } from "@/lib/api/client"
 import {
+  composerDraftKey,
+  isDraftRecord,
+  normalizeDraftAttachmentList,
+  normalizeDraftImageList,
+  normalizeDraftStringList,
+  useComposerDraft,
+} from "@/lib/composer-draft"
+import {
   getEditorModeOptions,
   getEditorSwitchConfirmMessage,
   type EditorMode,
@@ -65,6 +73,103 @@ type TopicVoteForm = {
   expiredAt: number
   voteNum: number
   options: Array<{ content: string }>
+}
+
+type TopicCreateDraft = {
+  form: TopicCreateFormState
+  attachmentList: TopicAttachment[]
+}
+
+function normalizeVote(value: unknown): TopicVoteForm | null {
+  if (!isDraftRecord(value)) {
+    return null
+  }
+
+  const options = Array.isArray(value.options)
+    ? value.options.flatMap((option) => {
+        if (!isDraftRecord(option) || typeof option.content !== "string") {
+          return []
+        }
+        return [{ content: option.content }]
+      })
+    : []
+  if (options.length < 2 || typeof value.title !== "string") {
+    return null
+  }
+
+  const type = value.type === 2 ? 2 : 1
+  const expiredAt = Number(value.expiredAt)
+  const voteNum = Number(value.voteNum)
+  return {
+    type,
+    title: value.title,
+    expiredAt: Number.isFinite(expiredAt)
+      ? expiredAt
+      : Date.now() + 24 * 60 * 60 * 1000,
+    voteNum:
+      Number.isFinite(voteNum) && voteNum > 0 ? voteNum : type === 2 ? 2 : 1,
+    options,
+  }
+}
+
+function normalizeTopicCreateDraft(
+  value: unknown,
+  initialValue: TopicCreateDraft
+): TopicCreateDraft | null {
+  if (!isDraftRecord(value) || !isDraftRecord(value.form)) {
+    return null
+  }
+
+  const source = value.form
+  const categoryId = Number(source.categoryId)
+  const bountyScore = Number(source.bountyScore)
+  const contentType =
+    source.contentType === "markdown" || source.contentType === "text"
+      ? source.contentType
+      : "html"
+
+  return {
+    form: {
+      ...initialValue.form,
+      type: initialValue.form.type,
+      categoryId: Number.isFinite(categoryId)
+        ? categoryId
+        : initialValue.form.categoryId,
+      title: typeof source.title === "string" ? source.title : "",
+      tags: normalizeDraftStringList(source.tags),
+      contentType,
+      content: typeof source.content === "string" ? source.content : "",
+      hideContent:
+        typeof source.hideContent === "string" ? source.hideContent : "",
+      imageList: normalizeDraftImageList(source.imageList),
+      vote: normalizeVote(source.vote),
+      bountyScore:
+        Number.isFinite(bountyScore) && bountyScore > 0
+          ? bountyScore
+          : undefined,
+      attachmentIds: [],
+    },
+    attachmentList: normalizeDraftAttachmentList(value.attachmentList),
+  }
+}
+
+function isTopicCreateDraftEmpty(
+  value: TopicCreateDraft,
+  initialValue: TopicCreateDraft
+) {
+  const { form, attachmentList } = value
+  return !(
+    form.categoryId !== initialValue.form.categoryId ||
+    form.contentType !== initialValue.form.contentType ||
+    form.title.trim() ||
+    form.content.trim() ||
+    form.hideContent.trim() ||
+    form.tags.length ||
+    form.imageList.length ||
+    form.vote ||
+    form.bountyScore ||
+    attachmentList.length
+  )
 }
 
 function titleForType(type: number, t: ReturnType<typeof useI18n>["t"]) {
@@ -145,7 +250,8 @@ function SimpleTopicEditor({
   const [showImageUpload, setShowImageUpload] = React.useState(false)
   const [imageUploading, setImageUploading] = React.useState(false)
   const currentImages = imageList || []
-  const showImageList = showImageUpload || currentImages.length > 0 || imageUploading
+  const showImageList =
+    showImageUpload || currentImages.length > 0 || imageUploading
 
   const uploadFiles = React.useCallback(
     async (files: File[]) => {
@@ -561,9 +667,6 @@ export function TopicCreateForm({
   const captchaRef = React.useRef<CaptchaChallengeHandle>(null)
   const lastSubmitAtRef = React.useRef(0)
   const [publishing, setPublishing] = React.useState(false)
-  const [attachmentList, setAttachmentList] = React.useState<TopicAttachment[]>(
-    []
-  )
   const [attachmentUploading, setAttachmentUploading] = React.useState(false)
   const [simpleEditorUploading, setSimpleEditorUploading] =
     React.useState(false)
@@ -572,13 +675,36 @@ export function TopicCreateForm({
   const [voteDraft, setVoteDraft] = React.useState<TopicVoteForm>(defaultVote())
   const [confirmState, setConfirmState] =
     React.useState<ConfirmDialogState>(null)
-  const [form, setForm] = React.useState<TopicCreateFormState>(() =>
-    createInitialForm({
-      type,
-      categoryId: categoryId || config?.defaultCategoryId || 0,
-      contentType,
-    })
+  const initialDraft = React.useMemo<TopicCreateDraft>(
+    () => ({
+      form: createInitialForm({
+        type,
+        categoryId: categoryId || config?.defaultCategoryId || 0,
+        contentType,
+      }),
+      attachmentList: [],
+    }),
+    [categoryId, config?.defaultCategoryId, contentType, type]
   )
+  const draftKey = React.useMemo(
+    () => composerDraftKey("topic-create", currentUser.id, type),
+    [currentUser.id, type]
+  )
+  const isDraftEmpty = React.useCallback(
+    (value: TopicCreateDraft) => isTopicCreateDraftEmpty(value, initialDraft),
+    [initialDraft]
+  )
+  const draft = useComposerDraft({
+    key: draftKey,
+    initialValue: initialDraft,
+    deserialize: React.useCallback(
+      (value: unknown) => normalizeTopicCreateDraft(value, initialDraft),
+      [initialDraft]
+    ),
+    isEmpty: isDraftEmpty,
+  })
+  const form = draft.value.form
+  const attachmentList = draft.value.attachmentList
 
   const availableNodes = React.useMemo(
     () => filterCategoryTree(categories, categoryTypeMatches(form.type)),
@@ -602,7 +728,22 @@ export function TopicCreateForm({
     : null
 
   function updateForm(next: Partial<TopicCreateFormState>) {
-    setForm((current) => ({ ...current, ...next }))
+    draft.setValue((current) => ({
+      ...current,
+      form: { ...current.form, ...next },
+    }))
+  }
+
+  function setAttachmentList(
+    next:
+      | TopicAttachment[]
+      | ((current: TopicAttachment[]) => TopicAttachment[])
+  ) {
+    draft.setValue((current) => ({
+      ...current,
+      attachmentList:
+        typeof next === "function" ? next(current.attachmentList) : next,
+    }))
   }
 
   function switchEditor(nextContentType: EditorMode) {
@@ -679,6 +820,7 @@ export function TopicCreateForm({
           captchaProtocol: captcha?.captchaProtocol || 2,
         },
       })
+      draft.clear()
       router.push(`/topic/${data.id}`)
     } catch (error) {
       catchError(error)
@@ -758,7 +900,14 @@ export function TopicCreateForm({
     <>
       <div className="publish-form">
         <div className="form-title">
-          <div className="form-title-name">{titleForType(form.type, t)}</div>
+          <div className="flex items-center gap-2">
+            <div className="form-title-name">{titleForType(form.type, t)}</div>
+            {draft.restored ? (
+              <span className="text-xs text-muted-foreground" role="status">
+                {t("component.composerDraft.restored")}
+              </span>
+            ) : null}
+          </div>
           {form.type !== 1 && form.type !== 2 ? (
             <div
               className="editor-mode-switch flex"
