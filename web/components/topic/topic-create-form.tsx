@@ -936,6 +936,18 @@ export function TopicCreateForm({
           ) : null}
         </div>
 
+        <div className="form-footer">
+          <Button
+            type="button"
+            disabled={
+              publishing || attachmentUploading || simpleEditorUploading
+            }
+            onClick={submit}
+          >
+            {publishLabelForType(form.type, t)}
+          </Button>
+        </div>
+
         <div className="field">
           <CategoryQuickSelector
             value={effectiveCategoryId}
@@ -1098,17 +1110,6 @@ export function TopicCreateForm({
           </div>
         ) : null}
 
-        <div className="form-footer">
-          <Button
-            type="button"
-            disabled={
-              publishing || attachmentUploading || simpleEditorUploading
-            }
-            onClick={submit}
-          >
-            {publishLabelForType(form.type, t)}
-          </Button>
-        </div>
       </div>
       <VoteEditorModal
         open={voteModalOpen}
