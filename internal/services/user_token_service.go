@@ -100,6 +100,8 @@ func (s *userTokenService) Signout(ctx *gin.Context) error {
 	if err != nil {
 		return err
 	}
+	userToken.Status = constants.StatusDeleted
+	cache.UserTokenCache.Put(token, userToken)
 	ginx.RemoveCookie(ctx, constants.CookieTokenKey)
 	return nil
 }
@@ -145,9 +147,10 @@ func (s *userTokenService) Disable(token string) error {
 	if t == nil {
 		return nil
 	}
-	err := repositories.UserTokenRepository.UpdateColumn(sqls.DB(), t.Id, "status", constants.StatusDeleted)
-	if err != nil {
-		cache.UserTokenCache.Invalidate(token)
+	if err := repositories.UserTokenRepository.UpdateColumn(sqls.DB(), t.Id, "status", constants.StatusDeleted); err != nil {
+		return err
 	}
-	return err
+	t.Status = constants.StatusDeleted
+	cache.UserTokenCache.Put(token, t)
+	return nil
 }
