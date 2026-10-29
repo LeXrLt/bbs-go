@@ -30,6 +30,7 @@
 | 获取二级回复 | `GET` | `/api/comment/replies` | 按站点配置 |
 | 创建评论或回复 | `POST` | `/api/comment/create` | 是 |
 | 删除评论或回复 | `POST` | `/api/comment/delete/{commentId}` | 是 |
+| 推送每日复盘板块 | `POST` | `/api/daily-review/ingest/{kind}` | 是，需专用权限 |
 | 退出并注销 token | `GET` | `/api/login/signout` | 可选 |
 
 基础地址约定：
@@ -379,16 +380,15 @@ GET /api/login/signout
 X-User-Token: <token>
 ```
 
-该接口会把数据库中的当前 token 标记为删除，并发送 Cookie 删除指令。即使请求中
-没有有效 token，也可能返回 `success:true`，因此成功响应只表示注销处理没有报错，
-不代表请求头中的 token 已即时失效。它使用 `GET` 而不是 `POST`，脚本应按现有路由
-调用。
+该接口会把数据库中的当前 token 标记为删除，并发送 Cookie 删除指令。数据库更新成功后，
+当前 BBS 进程会同步把该 token 的缓存状态标记为已删除，后续认证会立即拒绝它。即使请求中
+没有有效 token，也可能返回 `success:true`，因此成功响应只表示注销处理没有报错；脚本仍应
+立即从本地存储和后续请求头中删除 token。它使用 `GET` 而不是 `POST`，脚本应按现有路由调用。
 
-> **当前实现风险：** 当前版本没有同步失效进程内的 `UserTokenCache`。已经进入缓存
-> 的 `X-User-Token` 在注销成功后仍可能继续通过认证；缓存按访问续期，不能把残留
-> 有效期简单理解为固定 60 分钟。脚本必须立即从本地存储和后续请求头中删除 token，
-> 不要继续调用 `/api/user/current` 轮询失效，因为访问本身会延长缓存存活时间。需要
-> 即时、可靠的服务端撤销时，当前版本的注销接口无法提供该保证。
+> **多实例部署注意：** 当前 token 缓存是进程内缓存。单实例部署中，`Signout` 和管理员执行的
+> `Disable` 会让当前进程立即拒绝已撤销 token；如果未来同时运行多个 BBS 实例，还需要缓存
+> 失效广播或共享缓存，才能保证其他实例同步即时撤销。无论部署方式如何，都不得把 token 写入
+> 仓库、日志或错误响应。
 
 ## 5. 帖子接口
 
@@ -988,7 +988,111 @@ BBS 鉴权。S3 部署应启用 Block Public Access 和 Object Ownership；内�
 建议使用与公开图片分离的私有桶。上线前必须以匿名请求验证两个前缀均返回 `403/404`，
 附件只能通过上述鉴权接口读取。
 
-## 8. Python 完整示例
+## 8. 每日复盘推送
+
+独立对接说明、异步板块推送方式和可直接交给自动化 Codex 的任务模板见
+[`docs/daily-review-ingest.md`](daily-review-ingest.md)。
+
+每日复盘数据直接写入 BBS 使用的数据库。`daily-review-dashboard` 不是部署依赖，
+抓取任务只需要在 Markdown 文件生成完成后调用 BBS API。
+
+### 8.1 同步账户和权限
+
+管理员在 `/dashboard/users` 创建专用同步账户，再在 `/dashboard/roles` 创建或选择角色，
+授予以下权限并把角色分配给该账户：
+
+```text
+dashboard.dailyReview.ingest
+```
+
+同步账户人工登录一次取得 token。定时任务使用 `X-User-Token`，不要同时发送 Cookie、
+Bearer Token 或查询参数 `userToken`。token 应由运行环境的密钥管理服务注入，不能写入
+仓库、脚本参数、日志或定时任务文件。有效期以登录后 `/api/config/configs` 返回的
+`tokenExpireDays` 为准，客户端不得写死。
+
+### 8.2 板块和接口
+
+```http
+POST /api/daily-review/ingest/{kind}?date=YYYY-MM-DD
+Content-Type: application/json
+X-User-Token: <token>
+```
+
+`kind` 只能是以下固定值：
+
+| `kind` | 板块 |
+| --- | --- |
+| `shareholding` | 港股增持 |
+| `announcements` | 公告筛选 |
+| `movers` | 港股涨跌幅 |
+| `focus` | 重点公司 |
+| `buybacks` | 港股回购 |
+| `shorts` | 港股做空 |
+
+请求正文只包含 UTF-8 Markdown，最大 `1,000,000` 字节：
+
+```json
+{
+  "markdown": "# 重点公司复盘\n\n正文内容"
+}
+```
+
+成功响应中的 `data.result` 为 `created`、`updated` 或 `unchanged`：
+
+```json
+{
+  "errorCode": 0,
+  "message": "",
+  "success": true,
+  "data": {
+    "result": "updated",
+    "kind": "focus",
+    "date": "2026-10-28"
+  }
+}
+```
+
+相同日期和板块以内容 SHA-256 幂等。相同内容返回 `unchanged`；内容改变时更新当前版本，
+并把旧版本写入 revision 表。六个板块独立推送，缺少一个板块不会阻止其他板块展示。
+
+即使 HTTP 状态为 `200`，也必须检查 JSON 中的 `success`。未登录和无权限属于永久错误，
+不应重试；网络错误和 HTTP `5xx` 可以有限重试。日报 ingest 是幂等接口，在响应不确定时
+可以用同一日期、板块和内容安全重放。
+
+### 8.3 仓库内推送工具
+
+仓库提供仅使用 Python 标准库的 `scripts/push_daily_review.py`。token 只从环境变量读取，
+默认变量名为 `BBSGO_USER_TOKEN`：
+
+```bash
+read -r -s -p 'BBS token: ' BBSGO_USER_TOKEN
+printf '\n'
+export BBSGO_USER_TOKEN
+python3 scripts/push_daily_review.py \
+  --base-url 'https://bbs.example.com' \
+  --date '2026-10-28' \
+  --kind focus \
+  --file '/path/to/2026-10-28.md'
+```
+
+生产地址必须使用 HTTPS；只有 `localhost`、`127.0.0.1` 和 `::1` 可使用 HTTP。
+工具会校验日期、板块、UTF-8、文件大小、HTTP 状态和 `success`，并仅对网络错误及
+HTTP `5xx` 做最多三次尝试。不要给脚本增加明文 `--token` 参数。
+
+不使用仓库工具时，等价 `curl` 请求为：
+
+```bash
+jq -n --rawfile markdown '/path/to/report.md' '{markdown:$markdown}' |
+  curl -sS -X POST \
+    -H "X-User-Token: $BBSGO_USER_TOKEN" \
+    -H 'Content-Type: application/json' \
+    --data-binary @- \
+    "$BBS_BASE_URL/api/daily-review/ingest/focus?date=2026-10-28"
+```
+
+调用方仍需解析响应 JSON 并确认 `success=true`，不能只依赖 `curl` 的退出码。
+
+## 9. Python 完整示例
 
 安装依赖：
 
@@ -1150,7 +1254,7 @@ python3 automation.py
 
 当 `topicCaptcha=true` 时，上面的 `create_topic` 还必须接收并发送即时获取、人工完成的验证码字段。
 
-## 9. 常用错误码
+## 10. 常用错误码
 
 | `errorCode` | 含义 | 建议处理 |
 | ---: | --- | --- |
@@ -1165,10 +1269,10 @@ python3 automation.py
 
 参数错误、分类不匹配、模块关闭、密码错误等情况常使用 `errorCode=0`，仍应以 `success` 和 `message` 为准。
 
-## 10. 自动化实现注意事项
+## 11. 自动化实现注意事项
 
 1. 创建帖子和评论没有幂等键。请求超时并不代表服务端没有成功，不能立即盲目重试；应保存本地任务 ID，并通过列表查询或内容指纹去重。
-2. 只对可安全重复的 `GET` 请求做自动重试。对创建、编辑、删除等写请求，在确认服务端结果前不要自动重放。附件 `POST /api/attachment/access/{id}` 是明确的幂等例外，但结果不确定时仍应优先重查帖子详情中的 `accessGranted`。
+2. 默认只对可安全重复的 `GET` 请求做自动重试。对创建、编辑、删除等写请求，在确认服务端结果前不要自动重放。明确的幂等例外包括附件 `POST /api/attachment/access/{id}` 和日报 `POST /api/daily-review/ingest/{kind}`：附件结果不确定时仍应优先重查帖子详情中的 `accessGranted`；日报 ingest 可以对网络错误或 HTTP `5xx` 使用相同日期、板块和内容有限重试，但仍须检查 JSON `success`，且不得重试 HTTP `4xx` 或业务失败。
 3. 启动任务时先调用 `/api/user/current`；只有 `success=true` 且 `data` 非空才继续。
 4. 每次运行先匿名读取登录配置；取得 token 后再次读取完整配置和分类。不要把站点开关、分类 ID、验证码策略或 token 有效期写死。
 5. 帖子 ID 按字符串保存，评论 ID 按整数保存。不要把评论响应中的内部 `entityId` 当作外部帖子 ID。
@@ -1176,7 +1280,7 @@ python3 automation.py
 7. 限制并发和发布频率。当前代码没有启用发帖频率策略，但这不代表调用方可以无限并发；数据库、搜索索引、通知和任务事件仍有写入成本。
 8. 内容命中违禁词时可能返回创建成功但 `status=2`。脚本应把它记录为“待审核”，不能当作公开发布成功。
 
-## 11. 源码索引
+## 12. 源码索引
 
 接口发生变化时，优先核对以下文件：
 
@@ -1189,6 +1293,8 @@ python3 automation.py
 - 评论处理器与服务：`internal/handlers/api/comment_handlers.go`、`internal/services/comment_service.go`
 - 附件处理器与服务：`internal/handlers/api/attachment_handlers.go`、`internal/services/attachment_service.go`
 - 文档校验与转换：`internal/pkg/docpreview/`
+- 每日复盘接口：`internal/handlers/api/daily_review_handlers.go`、`internal/services/daily_review_service.go`
+- 每日复盘推送工具：`scripts/push_daily_review.py`
 - 统一响应：`internal/pkg/ginx/response.go`
 - 返回结构：`internal/models/resp/response.go`
 - 前端实际调用：`web/lib/api/client.ts`、`web/components/topic/topic-create-form.tsx`、`web/components/comment/index.tsx`

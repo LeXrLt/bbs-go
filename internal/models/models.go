@@ -20,10 +20,36 @@ var Models = []interface{}{
 	&OperateLog{}, &EmailLog{}, &EmailCode{}, &SmsCode{}, &CheckIn{}, &UserFollow{}, &UserFeed{}, &UserReport{},
 	&ForbiddenWord{},
 	&Attachment{}, &AttachmentDownloadLog{},
+	&DailyReviewReport{}, &DailyReviewReportRevision{},
 }
 
 type Model struct {
 	Id int64 `gorm:"primaryKey;autoIncrement" json:"id" form:"id"`
+}
+
+// DailyReviewReport stores the current Markdown snapshot for one review section.
+type DailyReviewReport struct {
+	Model
+	ReportDate  time.Time `gorm:"type:date;not null;index:idx_daily_review_report_date;uniqueIndex:uk_daily_review_report_date_kind" json:"reportDate"`
+	Kind        string    `gorm:"size:32;not null;uniqueIndex:uk_daily_review_report_date_kind" json:"kind"`
+	Title       string    `gorm:"size:250;not null" json:"title"`
+	Markdown    string    `gorm:"type:text;not null" json:"-"`
+	SummaryJson string    `gorm:"type:text;not null" json:"-"`
+	ContentHash string    `gorm:"size:64;not null" json:"-"`
+	CreateTime  int64     `gorm:"not null;default:0" json:"createTime"`
+	UpdateTime  int64     `gorm:"not null;default:0" json:"updateTime"`
+}
+
+// DailyReviewReportRevision keeps the previous snapshot when a report changes.
+type DailyReviewReportRevision struct {
+	Model
+	ReportId        int64  `gorm:"not null;index:idx_daily_review_revision_report_id" json:"reportId"`
+	Title           string `gorm:"size:250;not null" json:"title"`
+	Markdown        string `gorm:"type:text;not null" json:"-"`
+	SummaryJson     string `gorm:"type:text;not null" json:"-"`
+	ContentHash     string `gorm:"size:64;not null" json:"-"`
+	ReportUpdateTime int64 `gorm:"not null;default:0" json:"reportUpdateTime"`
+	ReplacedAt      int64  `gorm:"not null;default:0;index:idx_daily_review_revision_replaced_at" json:"replacedAt"`
 }
 
 type Migration struct {

@@ -1466,6 +1466,38 @@ const enUS = {
     articles: {
       title: "Articles",
     },
+    dailyReview: {
+      title: "Daily Review",
+      eyebrow: "MARKET REVIEW",
+      chooseDate: "Choose review date",
+      previousDay: "Previous day",
+      nextDay: "Next day",
+      today: "Today",
+      latest: "Latest available",
+      refresh: "Refresh review",
+      coverage: "{updated} of {total} sections updated",
+      updatedAt: "Synced {value}",
+      status: {
+        ready: "Updated",
+        noItems: "No matching items",
+        pending: "Not generated",
+      },
+      pendingDescription: "This section has not been generated for this date.",
+      sectionLoadError: "This section could not be loaded. Refresh to retry.",
+      emptyContent: "This section has no content to display.",
+      sourceNote:
+        "Content is synchronized from the source report with links preserved.",
+      organizingAnnouncements: "Organizing announcement entries...",
+      searchAnnouncements: "Search announcements",
+      searchAnnouncementsPlaceholder:
+        "Search company, ticker, title, or content",
+      announcementCount: "Showing {visible} of {total}",
+      noAnnouncementMatches: "No announcements match the current search.",
+      loadError: "Daily review is temporarily unavailable",
+      loadErrorDescription:
+        "The data service did not return a valid result. Try again shortly.",
+      retry: "Reload",
+    },
     calendar: {
       title: "Financial Calendar",
       beijingTime: "Beijing time",

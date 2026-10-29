@@ -19,6 +19,7 @@
     "build:ssr": "react-router build",
     "start": "node scripts/serve-ssr.mjs",
     "test:attachments": "node scripts/test-attachment-preview.mjs",
+    "test:daily-review": "node scripts/test-daily-review-route.mjs",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "react-router typegen && tsc --noEmit"

@@ -51,3 +51,10 @@ func (c *userTokenCache) Get(token string) *models.UserToken {
 func (c *userTokenCache) Invalidate(token string) {
 	c.cache.Invalidate(token)
 }
+
+func (c *userTokenCache) Put(token string, userToken *models.UserToken) {
+	if token == "" || userToken == nil {
+		return
+	}
+	c.cache.Put(token, userToken)
+}
