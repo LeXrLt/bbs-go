@@ -12,7 +12,7 @@ const zhCN = {
       error: "加载更多失败",
     },
     createBtn: {
-      create: "发表",
+      create: "新建",
       topic: "话题",
       qa: "问答",
       tweet: "动态",
