@@ -3,6 +3,10 @@
 本文面向生成每日复盘 Markdown 的定时任务或自动化 Codex。BBS 直接接收 Markdown
 并写入 PostgreSQL，不依赖 `daily-review-dashboard`，也不需要六个板块同时完成。
 
+生成 Markdown 的电脑不需要检出或运行 `bbs-go` 项目。`scripts/push_daily_review.py`
+只是一个可独立下载的 API 客户端，只依赖 Python 3 标准库；BBS 服务端才需要部署
+本仓库代码。
+
 ## 1. 推送模型
 
 一条数据由以下两个字段唯一确定：
@@ -49,14 +53,30 @@ token 不得写入仓库、Markdown、命令参数、日志或 Codex 提示词�
 
 ## 3. 推荐调用方式
 
-仓库提供 `scripts/push_daily_review.py`，只依赖 Python 标准库。每个文件生成成功后
-调用一次：
+### 3.1 在抓取电脑安装单文件客户端
+
+抓取电脑无需下载完整项目。首次使用时，把经过固定 commit 版本化的脚本下载到本地：
+
+```bash
+install -d "$HOME/.local/bin"
+curl -fsSL \
+  'https://raw.githubusercontent.com/lugit123456/bbs-go/15428ce2b6b6f9312121f249db06885405473740/scripts/push_daily_review.py' \
+  -o "$HOME/.local/bin/push_daily_review.py"
+chmod 700 "$HOME/.local/bin/push_daily_review.py"
+```
+
+建议首次部署时由管理员核对下载脚本的内容和 commit，再交给定时任务调用。脚本不需要
+安装第三方 Python package，也不需要访问 BBS 数据库。
+
+### 3.2 每个 Markdown 完成后调用
+
+每个文件生成成功后调用一次：
 
 ```bash
 export BBS_BASE_URL='https://bbs.example.com'
 export BBSGO_USER_TOKEN='由密钥管理服务注入，不要写死'
 
-python3 scripts/push_daily_review.py \
+python3 "$HOME/.local/bin/push_daily_review.py" \
   --base-url "$BBS_BASE_URL" \
   --date '2026-10-28' \
   --kind announcements \
@@ -79,12 +99,12 @@ unchanged: 2026-10-28 announcements
 六个抓取任务可以各自在完成后执行自己的命令，不需要设置统一等待任务：
 
 ```bash
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind shareholding  --file "$SHAREHOLDING_MD"
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind announcements --file "$ANNOUNCEMENTS_MD"
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind movers        --file "$MOVERS_MD"
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind focus         --file "$FOCUS_MD"
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind buybacks      --file "$BUYBACKS_MD"
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind shorts        --file "$SHORTS_MD"
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind shareholding  --file "$SHAREHOLDING_MD"
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind announcements --file "$ANNOUNCEMENTS_MD"
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind movers        --file "$MOVERS_MD"
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind focus         --file "$FOCUS_MD"
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind buybacks      --file "$BUYBACKS_MD"
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind shorts        --file "$SHORTS_MD"
 ```
 
 实际部署时只在对应文件已经完整写入且抓取任务成功后执行该行。建议抓取器先写临时文件，
@@ -158,16 +178,18 @@ BBS 的部分业务错误可能仍返回 HTTP `200`，因此不能只检查 HTTP
 ```text
 当指定 Markdown 文件完整生成后，把它推送到 BBS 每日复盘接口。
 
-仓库：/absolute/path/to/bbs-go
-脚本：scripts/push_daily_review.py
+不需要 bbs-go 项目代码或数据库连接。
+上传脚本：$HOME/.local/bin/push_daily_review.py
+如果脚本不存在，从下面固定 commit 地址下载并设置为仅当前用户可执行：
+https://raw.githubusercontent.com/lugit123456/bbs-go/15428ce2b6b6f9312121f249db06885405473740/scripts/push_daily_review.py
 BBS 地址：从环境变量 BBS_BASE_URL 读取
 认证：只从环境变量 BBSGO_USER_TOKEN 读取，不得打印、回显或写入文件
 复盘日期：使用上游任务明确提供的 REPORT_DATE，格式 YYYY-MM-DD；不得用当前时间代替
 板块：使用上游任务明确提供的 DAILY_REVIEW_KIND
 文件：使用上游任务明确提供的绝对路径 MARKDOWN_FILE
 
-执行前检查文件存在、非空且上游抓取任务成功。然后在 bbs-go 仓库运行：
-python3 scripts/push_daily_review.py --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind "$DAILY_REVIEW_KIND" --file "$MARKDOWN_FILE"
+执行前检查文件存在、非空且上游抓取任务成功。然后在任意目录运行：
+python3 "$HOME/.local/bin/push_daily_review.py" --base-url "$BBS_BASE_URL" --date "$REPORT_DATE" --kind "$DAILY_REVIEW_KIND" --file "$MARKDOWN_FILE"
 
 只有退出码为 0 才标记推送成功。记录脚本返回的 created、updated 或 unchanged，
 但不要记录 token。失败时保留原 Markdown，报告日期、板块和错误信息，不要删除文件，
