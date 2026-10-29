@@ -252,6 +252,12 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	calendarGroup.GET("/events", apiHandlers.CalendarEvents)
 	calendarGroup.GET("/events/:kind/:id", apiHandlers.CalendarEventDetail)
 
+	dailyReviewGroup := group.Group("/daily-review")
+	dailyReviewGroup.GET("/dashboard", apiHandlers.DailyReviewDashboard)
+	dailyReviewGroup.GET("/dates", apiHandlers.DailyReviewDates)
+	dailyReviewGroup.GET("/report/:kind", apiHandlers.DailyReviewReport)
+	dailyReviewGroup.POST("/ingest/:kind", apiHandlers.DailyReviewIngest)
+
 }
 
 func registerAdminRoutes(group *gin.RouterGroup) {

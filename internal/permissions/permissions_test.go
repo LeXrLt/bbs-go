@@ -32,3 +32,9 @@ func TestUserReportAuditPermissionIsRegistered(t *testing.T) {
 		t.Fatalf("expected dashboard.userReport.audit permission to be registered")
 	}
 }
+
+func TestDailyReviewIngestPermissionIsRegistered(t *testing.T) {
+	if _, ok := FindByCode("dashboard.dailyReview.ingest"); !ok {
+		t.Fatalf("expected dashboard.dailyReview.ingest permission to be registered")
+	}
+}
