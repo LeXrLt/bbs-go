@@ -7,6 +7,10 @@ import { addCalendarDays, calendarToday } from "../lib/calendar/index.ts"
 assert.equal(calendarToday(new Date("2026-10-27T15:59:59Z")), "2026-10-27")
 assert.equal(calendarToday(new Date("2026-10-27T16:00:00Z")), "2026-10-28")
 assert.equal(addCalendarDays("2026-10-31", 1), "2026-11-01")
+assert.equal(
+  addCalendarDays(calendarToday(new Date("2026-11-01T02:00:00Z")), -1),
+  "2026-10-31"
+)
 
 const repoRoot = resolve(import.meta.dirname, "../..")
 const routeSource = readFileSync(
@@ -61,6 +65,8 @@ assert.doesNotMatch(
 )
 assert.doesNotMatch(pageSource, /markdown/i)
 assert.match(dateSource, /isCalendarDate\(value\) && value <= today/)
+assert.match(dateSource, /const defaultDate = addDailyReviewDays\(today, -1\)/)
+assert.match(dateSource, /value : defaultDate/)
 assert.match(dateSource, /next\.set\("date", query\.date\)/)
 
 console.log("daily review route, date, and six-section contracts passed")

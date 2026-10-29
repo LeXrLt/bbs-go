@@ -20,9 +20,10 @@ export function parseDailyReviewSearchParams(
   now = new Date()
 ): DailyReviewQuery {
   const today = dailyReviewToday(now)
+  const defaultDate = addDailyReviewDays(today, -1)
   const value = searchParams.get("date")
   return {
-    date: isCalendarDate(value) && value <= today ? value : today,
+    date: isCalendarDate(value) && value <= today ? value : defaultDate,
   }
 }
 
