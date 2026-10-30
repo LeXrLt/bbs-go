@@ -46,7 +46,7 @@ assert.deepEqual(
     ),
     (match) => match[1]
   ),
-  ["shareholding", "announcements", "movers", "focus", "buybacks", "shorts"]
+  ["focus", "shareholding", "announcements", "movers", "buybacks", "shorts"]
 )
 assert.match(pageSource, /data\.dashboard\.sections\.map/)
 assert.match(pageSource, /dailyReviewSearchParams/)
@@ -57,8 +57,18 @@ assert.match(
 assert.match(pageSource, /html=\{report\.content_html\}/)
 assert.match(pageSource, /section\.kind === "announcements"/)
 assert.match(pageSource, /function AnnouncementReviewContent/)
+assert.match(pageSource, /function FocusReviewContent/)
+assert.match(pageSource, /function TableReviewContent/)
 assert.match(pageSource, /new DOMParser\(\)/)
-assert.match(pageSource, /<details[\s\S]*?key=\{entry\.id\}/)
+assert.match(pageSource, /daily-review-announcement-table/)
+assert.match(pageSource, /daily-review-announcement-main-row/)
+assert.match(pageSource, /daily-review-announcement-secondary/)
+assert.match(pageSource, /marketCapShort/)
+assert.match(pageSource, /coreContentShort/)
+assert.match(pageSource, /followUpShort/)
+assert.match(pageSource, /daily-review-focus-table/)
+assert.match(pageSource, /setExpandedIds/)
+assert.doesNotMatch(pageSource, /<details/)
 assert.doesNotMatch(
   pageSource,
   /iframe|daily-review-dashboard|127\.0\.0\.1:8089/

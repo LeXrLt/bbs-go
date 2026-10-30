@@ -98,6 +98,17 @@ interface ParsedAnnouncements {
   groups: AnnouncementGroup[]
 }
 
+interface FocusEntry {
+  company: string
+  changes: string[]
+  sources: string[]
+}
+
+interface ParsedFocusReview {
+  introHtml: string
+  entries: FocusEntry[]
+}
+
 const announcementSummaryFields = new Set([
   "市场",
   "代码",
@@ -115,6 +126,68 @@ const announcementWideFields = new Set([
   "后续跟踪",
   "判断",
 ])
+
+function parseFocusHtml(html: string): ParsedFocusReview | null {
+  if (typeof DOMParser === "undefined") return null
+
+  const document = new DOMParser().parseFromString(html, "text/html")
+  const introNodes: string[] = []
+  const entries: FocusEntry[] = []
+  let current: FocusEntry | null = null
+
+  for (const child of Array.from(document.body.children)) {
+    if (child.tagName === "H1") continue
+
+    const companyMatch =
+      child.tagName === "P"
+        ? child.textContent?.trim().match(/^【(.+?)】$/)
+        : null
+    if (companyMatch) {
+      current = { company: companyMatch[1], changes: [], sources: [] }
+      entries.push(current)
+      continue
+    }
+
+    if (!current) {
+      introNodes.push(child.outerHTML)
+      continue
+    }
+
+    if (child.tagName === "UL" || child.tagName === "OL") {
+      for (const item of Array.from(child.querySelectorAll(":scope > li"))) {
+        const text = item.textContent?.trim() || ""
+        const itemHtml = item.innerHTML
+        if (/^来源[:：]/.test(text)) {
+          current.sources.push(itemHtml.replace(/^\s*来源[:：]\s*/, ""))
+        } else {
+          current.changes.push(
+            itemHtml.replace(/^\s*新增变化[:：]\s*/, "")
+          )
+        }
+      }
+      continue
+    }
+
+    current.changes.push(child.outerHTML)
+  }
+
+  if (!entries.length) return null
+  return { introHtml: introNodes.join(""), entries }
+}
+
+function prepareTableHtml(html: string) {
+  if (typeof DOMParser === "undefined") return null
+
+  const document = new DOMParser().parseFromString(html, "text/html")
+  for (const table of Array.from(document.body.querySelectorAll("table"))) {
+    table.classList.add("daily-review-data-table")
+    const wrapper = document.createElement("div")
+    wrapper.className = "daily-review-table-scroll"
+    table.parentNode?.insertBefore(wrapper, table)
+    wrapper.appendChild(table)
+  }
+  return document.body.innerHTML
+}
 
 function parseAnnouncementHtml(html: string): ParsedAnnouncements | null {
   if (typeof DOMParser === "undefined") return null
@@ -204,13 +277,108 @@ function parseAnnouncementHtml(html: string): ParsedAnnouncements | null {
   return { introHtml: introNodes.join(""), groups }
 }
 
+function TableReviewContent({
+  html,
+  kind,
+}: {
+  html: string
+  kind: Exclude<DailyReviewKind, "focus" | "announcements">
+}) {
+  const [preparedHtml, setPreparedHtml] = React.useState<string>()
+
+  React.useEffect(() => {
+    setPreparedHtml(prepareTableHtml(html) || html)
+  }, [html])
+
+  return (
+    <HtmlImagePreview
+      html={preparedHtml || html}
+      className={cn("daily-review-content", `daily-review-content-${kind}`)}
+    />
+  )
+}
+
+function FocusReviewContent({ html }: { html: string }) {
+  const { t } = useI18n()
+  const [parsed, setParsed] = React.useState<ParsedFocusReview | null>()
+
+  React.useEffect(() => {
+    setParsed(parseFocusHtml(html))
+  }, [html])
+
+  if (!parsed) {
+    return (
+      <HtmlImagePreview
+        html={html}
+        className="daily-review-content daily-review-content-focus"
+      />
+    )
+  }
+
+  return (
+    <div className="daily-review-focus">
+      {parsed.introHtml ? (
+        <HtmlImagePreview
+          html={parsed.introHtml}
+          className="daily-review-focus-intro daily-review-content"
+        />
+      ) : null}
+      <div className="daily-review-table-scroll">
+        <table className="daily-review-data-table daily-review-focus-table">
+          <thead>
+            <tr>
+              <th>{t("pages.dailyReview.table.company")}</th>
+              <th>{t("pages.dailyReview.table.change")}</th>
+              <th>{t("pages.dailyReview.table.source")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {parsed.entries.map((entry) => (
+              <tr key={entry.company}>
+                <th scope="row">{entry.company}</th>
+                <td>
+                  <ul className="daily-review-focus-changes">
+                    {entry.changes.map((change, index) => (
+                      <li key={`${entry.company}-change-${index}`}>
+                        <HtmlImagePreview
+                          html={change}
+                          className="daily-review-cell-content"
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </td>
+                <td>
+                  <div className="daily-review-focus-sources">
+                    {entry.sources.map((source, index) => (
+                      <HtmlImagePreview
+                        key={`${entry.company}-source-${index}`}
+                        html={source}
+                        className="daily-review-cell-content"
+                      />
+                    ))}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function AnnouncementReviewContent({ html }: { html: string }) {
   const { t } = useI18n()
   const [query, setQuery] = React.useState("")
   const [parsed, setParsed] = React.useState<ParsedAnnouncements | null>()
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(
+    () => new Set()
+  )
 
   React.useEffect(() => {
     setParsed(parseAnnouncementHtml(html))
+    setExpandedIds(new Set())
   }, [html])
 
   const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -275,63 +443,193 @@ function AnnouncementReviewContent({ html }: { html: string }) {
             <h3>{group.title}</h3>
             <span>{group.entries.length}</span>
           </div>
-          <div className="daily-review-announcement-list">
-            {group.entries.map((entry) => (
-              <details
-                key={entry.id}
-                className="daily-review-announcement-item"
-              >
-                <summary>
-                  <span
-                    className={cn(
-                      "daily-review-market-badge",
-                      entry.market === "A股" && "daily-review-market-badge-a"
-                    )}
-                  >
-                    {entry.market || "--"}
-                  </span>
-                  <span className="daily-review-announcement-identity">
-                    <span className="daily-review-announcement-company">
-                      {entry.company || entry.title}
-                    </span>
-                    {entry.code ? (
-                      <span className="daily-review-announcement-code">
-                        {entry.code}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="daily-review-announcement-title">
-                    {entry.title}
-                  </span>
-                  {entry.time ? (
-                    <span className="daily-review-announcement-time">
-                      {entry.time}
-                    </span>
-                  ) : null}
-                  <ChevronDownIcon
-                    className="daily-review-announcement-chevron"
-                    aria-hidden="true"
-                  />
-                </summary>
-                <div className="daily-review-announcement-detail">
-                  {entry.fields.map((field) => (
-                    <div
-                      key={field.label}
-                      className={cn(
-                        "daily-review-announcement-field",
-                        field.wide && "daily-review-announcement-field-wide"
-                      )}
-                    >
-                      <span>{field.label}</span>
-                      <HtmlImagePreview
-                        html={field.html}
-                        className="daily-review-announcement-value"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </details>
-            ))}
+          <div className="daily-review-table-scroll">
+            <table className="daily-review-data-table daily-review-announcement-table">
+              <thead>
+                <tr>
+                  <th>{t("pages.dailyReview.table.market")}</th>
+                  <th>{t("pages.dailyReview.table.company")}</th>
+                  <th>{t("pages.dailyReview.table.announcement")}</th>
+                  <th>{t("pages.dailyReview.table.reason")}</th>
+                  <th>{t("pages.dailyReview.table.time")}</th>
+                  <th aria-label={t("pages.dailyReview.table.details")} />
+                </tr>
+              </thead>
+              <tbody>
+                {group.entries.map((entry) => {
+                  const expanded = expandedIds.has(entry.id)
+                  const highlight = entry.fields.find((field) =>
+                    ["关注理由", "判断"].includes(field.label)
+                  )
+                  const marketCap = entry.fields.find(
+                    (field) => field.label === "市值是否达标"
+                  )
+                  const coreContent = entry.fields.find((field) =>
+                    ["核心内容", "特殊事件要点"].includes(field.label)
+                  )
+                  const followUp = entry.fields.find((field) =>
+                    ["后续跟踪", "后续关注"].includes(field.label)
+                  )
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <tr className="daily-review-announcement-main-row">
+                        <td>
+                          <span
+                            className={cn(
+                              "daily-review-market-badge",
+                              entry.market === "A股" &&
+                                "daily-review-market-badge-a"
+                            )}
+                          >
+                            {entry.market || "--"}
+                          </span>
+                        </td>
+                        <th scope="row">
+                          <span
+                            className="daily-review-announcement-company-stack"
+                            title={
+                              [
+                                [entry.company || entry.title, entry.code]
+                                  .filter(Boolean)
+                                  .join(" "),
+                                marketCap?.text,
+                              ]
+                                .filter(Boolean)
+                                .join("\n")
+                            }
+                          >
+                            <span className="daily-review-announcement-company-cell">
+                              <span className="daily-review-announcement-company">
+                                {entry.company || entry.title}
+                              </span>
+                              {entry.code ? (
+                                <span className="daily-review-announcement-code">
+                                  {entry.code}
+                                </span>
+                              ) : null}
+                            </span>
+                            {marketCap ? (
+                              <span className="daily-review-announcement-secondary">
+                                <span className="daily-review-announcement-secondary-label">
+                                  {t("pages.dailyReview.table.marketCapShort")}
+                                </span>
+                                <span className="daily-review-announcement-secondary-text">
+                                  {marketCap.text}
+                                </span>
+                              </span>
+                            ) : null}
+                          </span>
+                        </th>
+                        <td
+                          className="daily-review-announcement-summary-cell"
+                          title={[entry.title, coreContent?.text]
+                            .filter(Boolean)
+                            .join("\n")}
+                        >
+                          <span className="daily-review-announcement-title">
+                            {entry.title}
+                          </span>
+                          {coreContent ? (
+                            <span className="daily-review-announcement-secondary">
+                              <span className="daily-review-announcement-secondary-label">
+                                {t("pages.dailyReview.table.coreContentShort")}
+                              </span>
+                              <span className="daily-review-announcement-secondary-text">
+                                {coreContent.text}
+                              </span>
+                            </span>
+                          ) : null}
+                        </td>
+                        <td
+                          className="daily-review-announcement-summary-cell"
+                          title={[highlight?.text, followUp?.text]
+                            .filter(Boolean)
+                            .join("\n")}
+                        >
+                          {highlight ? (
+                            <HtmlImagePreview
+                              html={highlight.html}
+                              className="daily-review-cell-content daily-review-announcement-primary"
+                            />
+                          ) : (
+                            "--"
+                          )}
+                          {followUp ? (
+                            <span className="daily-review-announcement-secondary">
+                              <span className="daily-review-announcement-secondary-label">
+                                {t("pages.dailyReview.table.followUpShort")}
+                              </span>
+                              <span className="daily-review-announcement-secondary-text">
+                                {followUp.text}
+                              </span>
+                            </span>
+                          ) : null}
+                        </td>
+                        <td
+                          className="daily-review-announcement-time"
+                          title={entry.time}
+                        >
+                          {entry.time || "--"}
+                        </td>
+                        <td className="daily-review-announcement-action">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-expanded={expanded}
+                            title={t(
+                              expanded
+                                ? "pages.dailyReview.collapseDetails"
+                                : "pages.dailyReview.expandDetails"
+                            )}
+                            onClick={() =>
+                              setExpandedIds((current) => {
+                                const next = new Set(current)
+                                if (next.has(entry.id)) next.delete(entry.id)
+                                else next.add(entry.id)
+                                return next
+                              })
+                            }
+                          >
+                            <ChevronDownIcon
+                              className={cn(
+                                "daily-review-announcement-chevron",
+                                expanded && "is-expanded"
+                              )}
+                              aria-hidden="true"
+                            />
+                          </Button>
+                        </td>
+                      </tr>
+                      {expanded ? (
+                        <tr className="daily-review-announcement-detail-row">
+                          <td colSpan={6}>
+                            <div className="daily-review-announcement-detail">
+                              {entry.fields.map((field) => (
+                                <div
+                                  key={field.label}
+                                  className={cn(
+                                    "daily-review-announcement-field",
+                                    field.wide &&
+                                      "daily-review-announcement-field-wide"
+                                  )}
+                                >
+                                  <span>{field.label}</span>
+                                  <HtmlImagePreview
+                                    html={field.html}
+                                    className="daily-review-announcement-value"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </React.Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </section>
       ))}
@@ -436,12 +734,14 @@ function DailyReviewSectionPanel({
           </p>
         ) : report.content_html ? (
           <>
-            {section.kind === "announcements" ? (
+            {section.kind === "focus" ? (
+              <FocusReviewContent html={report.content_html} />
+            ) : section.kind === "announcements" ? (
               <AnnouncementReviewContent html={report.content_html} />
             ) : (
-              <HtmlImagePreview
+              <TableReviewContent
                 html={report.content_html}
-                className="daily-review-content"
+                kind={section.kind}
               />
             )}
             <footer className="daily-review-section-footer">

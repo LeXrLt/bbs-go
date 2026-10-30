@@ -16,7 +16,7 @@ import (
 )
 
 func TestDailyReviewTypesUseStableDisplayOrder(t *testing.T) {
-	want := []string{"shareholding", "announcements", "movers", "focus", "buybacks", "shorts"}
+	want := []string{"focus", "shareholding", "announcements", "movers", "buybacks", "shorts"}
 	types := DailyReviewService.Types()
 	if len(types) != len(want) {
 		t.Fatalf("types length = %d, want %d", len(types), len(want))
@@ -25,6 +25,9 @@ func TestDailyReviewTypesUseStableDisplayOrder(t *testing.T) {
 		if types[i].Kind != kind {
 			t.Fatalf("types[%d].Kind = %q, want %q", i, types[i].Kind, kind)
 		}
+	}
+	if types[0].Label != "重点公司变化" || types[1].Label != "增持" || types[3].Label != "涨跌幅" {
+		t.Fatalf("unexpected display labels: %#v", types)
 	}
 }
 

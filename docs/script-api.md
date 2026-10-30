@@ -1022,12 +1022,12 @@ X-User-Token: <token>
 
 | `kind` | 板块 |
 | --- | --- |
-| `shareholding` | 港股增持 |
+| `focus` | 重点公司变化 |
+| `shareholding` | 增持 |
 | `announcements` | 公告筛选 |
-| `movers` | 港股涨跌幅 |
-| `focus` | 重点公司 |
-| `buybacks` | 港股回购 |
-| `shorts` | 港股做空 |
+| `movers` | 涨跌幅 |
+| `buybacks` | 回购 |
+| `shorts` | 做空 |
 
 请求正文只包含 UTF-8 Markdown，最大 `1,000,000` 字节：
 
