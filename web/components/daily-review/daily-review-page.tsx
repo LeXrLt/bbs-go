@@ -461,9 +461,18 @@ function AnnouncementReviewContent({ html }: { html: string }) {
                   const highlight = entry.fields.find((field) =>
                     ["关注理由", "判断"].includes(field.label)
                   )
+                  const marketCap = entry.fields.find(
+                    (field) => field.label === "市值是否达标"
+                  )
+                  const coreContent = entry.fields.find((field) =>
+                    ["核心内容", "特殊事件要点"].includes(field.label)
+                  )
+                  const followUp = entry.fields.find((field) =>
+                    ["后续跟踪", "后续关注"].includes(field.label)
+                  )
                   return (
                     <React.Fragment key={entry.id}>
-                      <tr>
+                      <tr className="daily-review-announcement-main-row">
                         <td>
                           <span
                             className={cn(
@@ -476,29 +485,90 @@ function AnnouncementReviewContent({ html }: { html: string }) {
                           </span>
                         </td>
                         <th scope="row">
-                          <span className="daily-review-announcement-company">
-                            {entry.company || entry.title}
+                          <span
+                            className="daily-review-announcement-company-stack"
+                            title={
+                              [
+                                [entry.company || entry.title, entry.code]
+                                  .filter(Boolean)
+                                  .join(" "),
+                                marketCap?.text,
+                              ]
+                                .filter(Boolean)
+                                .join("\n")
+                            }
+                          >
+                            <span className="daily-review-announcement-company-cell">
+                              <span className="daily-review-announcement-company">
+                                {entry.company || entry.title}
+                              </span>
+                              {entry.code ? (
+                                <span className="daily-review-announcement-code">
+                                  {entry.code}
+                                </span>
+                              ) : null}
+                            </span>
+                            {marketCap ? (
+                              <span className="daily-review-announcement-secondary">
+                                <span className="daily-review-announcement-secondary-label">
+                                  {t("pages.dailyReview.table.marketCapShort")}
+                                </span>
+                                <span className="daily-review-announcement-secondary-text">
+                                  {marketCap.text}
+                                </span>
+                              </span>
+                            ) : null}
                           </span>
-                          {entry.code ? (
-                            <span className="daily-review-announcement-code">
-                              {entry.code}
+                        </th>
+                        <td
+                          className="daily-review-announcement-summary-cell"
+                          title={[entry.title, coreContent?.text]
+                            .filter(Boolean)
+                            .join("\n")}
+                        >
+                          <span className="daily-review-announcement-title">
+                            {entry.title}
+                          </span>
+                          {coreContent ? (
+                            <span className="daily-review-announcement-secondary">
+                              <span className="daily-review-announcement-secondary-label">
+                                {t("pages.dailyReview.table.coreContentShort")}
+                              </span>
+                              <span className="daily-review-announcement-secondary-text">
+                                {coreContent.text}
+                              </span>
                             </span>
                           ) : null}
-                        </th>
-                        <td className="daily-review-announcement-title">
-                          {entry.title}
                         </td>
-                        <td>
+                        <td
+                          className="daily-review-announcement-summary-cell"
+                          title={[highlight?.text, followUp?.text]
+                            .filter(Boolean)
+                            .join("\n")}
+                        >
                           {highlight ? (
                             <HtmlImagePreview
                               html={highlight.html}
-                              className="daily-review-cell-content"
+                              className="daily-review-cell-content daily-review-announcement-primary"
                             />
                           ) : (
                             "--"
                           )}
+                          {followUp ? (
+                            <span className="daily-review-announcement-secondary">
+                              <span className="daily-review-announcement-secondary-label">
+                                {t("pages.dailyReview.table.followUpShort")}
+                              </span>
+                              <span className="daily-review-announcement-secondary-text">
+                                {followUp.text}
+                              </span>
+                            </span>
+                          ) : null}
                         </td>
-                        <td className="daily-review-announcement-time">
+                        <td
+                          className="daily-review-announcement-time"
+                          title={entry.time}
+                        >
                           {entry.time || "--"}
                         </td>
                         <td className="daily-review-announcement-action">

@@ -504,8 +504,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 1.5rem 0 0.5rem;
-    padding-bottom: 1rem;
+    margin: 1.25rem 0 0.375rem;
+    padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -539,7 +539,7 @@
   }
 
   .daily-review-announcement-group {
-    margin-top: 2rem;
+    margin-top: 1.25rem;
   }
 
   .daily-review-announcement-group-heading {
@@ -547,7 +547,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 0 0.25rem 0.75rem;
+    padding: 0 0.25rem 0.5rem;
   }
 
   .daily-review-announcement-group-heading h3 {
@@ -571,7 +571,7 @@
   }
 
   .daily-review-announcement-table {
-    min-width: 58rem;
+    min-width: 60rem;
     table-layout: fixed;
   }
 
@@ -580,15 +580,15 @@
   }
 
   .daily-review-announcement-table thead th:nth-child(2) {
-    width: 9rem;
+    width: 10rem;
   }
 
   .daily-review-announcement-table thead th:nth-child(3) {
-    width: 13rem;
+    width: 16rem;
   }
 
   .daily-review-announcement-table thead th:nth-child(4) {
-    width: 20rem;
+    width: auto;
   }
 
   .daily-review-announcement-table thead th:nth-child(5) {
@@ -601,6 +601,29 @@
 
   .daily-review-announcement-table tbody th[scope="row"] {
     font-weight: 400;
+  }
+
+  .daily-review-data-table .daily-review-announcement-main-row > * {
+    height: 3rem;
+    padding: 0.375rem 0.625rem;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .daily-review-data-table .daily-review-announcement-main-row > :first-child,
+  .daily-review-data-table .daily-review-announcement-main-row > :last-child {
+    padding-inline: 0.375rem;
+  }
+
+  .daily-review-announcement-main-row .daily-review-cell-content,
+  .daily-review-announcement-main-row .daily-review-cell-content > * {
+    display: block;
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .daily-review-market-badge {
@@ -625,38 +648,100 @@
     color: light-dark(#8a5212, #f2bd67);
   }
 
-  .daily-review-announcement-company,
-  .daily-review-announcement-code,
-  .daily-review-announcement-title,
-  .daily-review-announcement-time {
-    display: block;
+  .daily-review-announcement-company-cell {
+    display: flex;
     min-width: 0;
-    overflow-wrap: anywhere;
+    align-items: baseline;
+    gap: 0.375rem;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .daily-review-announcement-company-stack,
+  .daily-review-announcement-summary-cell {
+    min-width: 0;
+  }
+
+  .daily-review-announcement-company-stack {
+    display: grid;
+    gap: 0.125rem;
+    overflow: hidden;
+  }
+
+  .daily-review-announcement-summary-cell > :first-child {
+    margin-top: 0;
+  }
+
+  .daily-review-announcement-summary-cell > :last-child {
+    margin-bottom: 0;
   }
 
   .daily-review-announcement-company {
+    min-width: 0;
+    overflow: hidden;
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .daily-review-announcement-code,
-  .daily-review-announcement-time {
-    margin-top: 0.15rem;
+  .daily-review-announcement-code {
+    flex: none;
     color: var(--muted-foreground);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
   }
 
   .daily-review-announcement-title {
+    display: block;
+    overflow: hidden;
     color: var(--foreground);
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-weight: 600;
-    line-height: 1.5;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .daily-review-announcement-primary {
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .daily-review-announcement-secondary {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 0.3rem;
+    margin-top: 0.125rem;
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 0.6875rem;
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+
+  .daily-review-announcement-secondary-label {
+    flex: none;
+    font-weight: 650;
+  }
+
+  .daily-review-announcement-secondary-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .daily-review-announcement-time {
-    margin-top: 0;
-    line-height: 1.45;
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .daily-review-announcement-action {
