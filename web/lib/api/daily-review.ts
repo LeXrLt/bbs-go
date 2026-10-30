@@ -1,10 +1,10 @@
 import { apiFetch, type ApiRequestOptions } from "./client"
 
 export const DAILY_REVIEW_KINDS = [
+  "focus",
   "shareholding",
   "announcements",
   "movers",
-  "focus",
   "buybacks",
   "shorts",
 ] as const

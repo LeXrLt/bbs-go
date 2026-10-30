@@ -83,12 +83,12 @@ type DailyReviewSaveResult struct {
 }
 
 var dailyReviewTypes = []DailyReviewType{
-	{Kind: "shareholding", Label: "港股增持", Icon: "trending-up"},
+	{Kind: "focus", Label: "重点公司变化", Icon: "building-2"},
+	{Kind: "shareholding", Label: "增持", Icon: "trending-up"},
 	{Kind: "announcements", Label: "公告筛选", Icon: "file-text"},
-	{Kind: "movers", Label: "港股涨跌幅", Icon: "chart-no-axes-combined"},
-	{Kind: "focus", Label: "重点公司", Icon: "building-2"},
-	{Kind: "buybacks", Label: "港股回购", Icon: "rotate-ccw"},
-	{Kind: "shorts", Label: "港股做空", Icon: "activity"},
+	{Kind: "movers", Label: "涨跌幅", Icon: "chart-no-axes-combined"},
+	{Kind: "buybacks", Label: "回购", Icon: "rotate-ccw"},
+	{Kind: "shorts", Label: "做空", Icon: "activity"},
 }
 
 var focusCompanyPattern = regexp.MustCompile(`(?m)^【[^】]+】\s*$`)

@@ -1493,6 +1493,18 @@ const enUS = {
         "Search company, ticker, title, or content",
       announcementCount: "Showing {visible} of {total}",
       noAnnouncementMatches: "No announcements match the current search.",
+      expandDetails: "Expand details",
+      collapseDetails: "Collapse details",
+      table: {
+        market: "Market",
+        company: "Company",
+        change: "Latest changes",
+        announcement: "Announcement",
+        reason: "Why it matters",
+        time: "Published",
+        source: "Sources",
+        details: "Details",
+      },
       loadError: "Daily review is temporarily unavailable",
       loadErrorDescription:
         "The data service did not return a valid result. Try again shortly.",

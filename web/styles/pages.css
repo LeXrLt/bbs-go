@@ -178,23 +178,22 @@
   }
 
   .daily-review-section + .daily-review-section {
-    margin-top: 4rem;
+    margin-top: 3.5rem;
   }
 
   .daily-review-section-header {
     display: flex;
-    min-height: 5.5rem;
-    align-items: center;
+    min-height: 0;
+    align-items: flex-end;
     justify-content: space-between;
     gap: 1.25rem;
-    padding: 1rem 1.25rem;
-    border-left: 0.3rem solid color-mix(in srgb, var(--primary) 70%, white);
-    background: color-mix(in srgb, var(--primary) 74%, #172522);
-    color: var(--primary-foreground);
+    padding: 0 0 0.875rem;
+    border-bottom: 2px solid var(--foreground);
+    color: var(--foreground);
   }
 
   .daily-review-section-kicker {
-    color: color-mix(in srgb, var(--primary-foreground) 70%, transparent);
+    color: var(--primary);
     font-size: 0.6875rem;
     font-weight: 700;
   }
@@ -205,9 +204,10 @@
     height: 2rem;
     flex: 0 0 2rem;
     place-items: center;
-    border: 1px solid
-      color-mix(in srgb, var(--primary-foreground) 32%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
     border-radius: 0.25rem;
+    background: color-mix(in srgb, var(--primary) 10%, transparent);
+    color: var(--primary);
   }
 
   .daily-review-section-meta {
@@ -216,7 +216,7 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 0.25rem;
-    color: color-mix(in srgb, var(--primary-foreground) 80%, transparent);
+    color: var(--muted-foreground);
     font-size: 0.75rem;
   }
 
@@ -224,7 +224,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    color: var(--primary-foreground);
+    color: var(--foreground);
     font-weight: 700;
   }
 
@@ -247,7 +247,11 @@
   .daily-review-metrics {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-    border-bottom: 1px solid var(--border);
+    margin-top: 0.75rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    background: color-mix(in srgb, var(--muted) 35%, transparent);
   }
 
   .daily-review-metric {
@@ -339,32 +343,148 @@
     color: var(--muted-foreground);
   }
 
-  .daily-review-content table {
-    display: block;
-    width: max-content;
-    min-width: 100%;
+  .daily-review-table-scroll {
+    width: 100%;
     max-width: 100%;
-    margin: 0.75rem 0 1.5rem;
     overflow-x: auto;
     border: 1px solid var(--border);
-    border-collapse: collapse;
+    border-radius: 0.375rem;
     background: var(--background);
-    font-size: 0.875rem;
+    scrollbar-color: var(--border) transparent;
   }
 
-  .daily-review-content th,
-  .daily-review-content td {
-    min-width: 7rem;
-    padding: 0.625rem 0.75rem;
+  .daily-review-content .daily-review-table-scroll {
+    margin: 0.75rem 0 1.5rem;
+  }
+
+  .daily-review-data-table {
+    width: 100%;
+    border-spacing: 0;
+    border-collapse: separate;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+  }
+
+  .daily-review-data-table th,
+  .daily-review-data-table td {
+    padding: 0.6875rem 0.75rem;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
     text-align: left;
     vertical-align: top;
+    overflow-wrap: anywhere;
   }
 
-  .daily-review-content th {
-    background: var(--muted);
-    font-weight: 650;
+  .daily-review-data-table tr > :last-child {
+    border-right: 0;
+  }
+
+  .daily-review-data-table tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+
+  .daily-review-data-table thead th {
+    background: color-mix(in srgb, var(--muted) 82%, var(--background));
+    color: var(--foreground);
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .daily-review-data-table tbody > tr:nth-child(even):not(
+      .daily-review-announcement-detail-row
+    ) {
+    background: color-mix(in srgb, var(--muted) 24%, transparent);
+  }
+
+  .daily-review-data-table tbody > tr:not(
+      .daily-review-announcement-detail-row
+    ):hover {
+    background: color-mix(in srgb, var(--primary) 5%, var(--background));
+  }
+
+  .daily-review-data-table a,
+  .daily-review-cell-content a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .daily-review-content-shareholding .daily-review-data-table {
+    min-width: 52rem;
+  }
+
+  .daily-review-content-movers .daily-review-data-table {
+    min-width: 72rem;
+  }
+
+  .daily-review-content-buybacks .daily-review-data-table {
+    min-width: 58rem;
+  }
+
+  .daily-review-content-shorts .daily-review-data-table {
+    min-width: 64rem;
+  }
+
+  .daily-review-focus {
+    padding-top: 1.25rem;
+  }
+
+  .daily-review-focus-intro {
+    padding-top: 0;
+  }
+
+  .daily-review-focus-intro p {
+    margin: 0 0 0.75rem;
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+  }
+
+  .daily-review-focus-table {
+    min-width: 58rem;
+    table-layout: fixed;
+  }
+
+  .daily-review-focus-table thead th:first-child {
+    width: 10rem;
+  }
+
+  .daily-review-focus-table thead th:last-child {
+    width: 15rem;
+  }
+
+  .daily-review-focus-table tbody th[scope="row"] {
+    background: color-mix(in srgb, var(--muted) 38%, var(--background));
+    font-size: 0.875rem;
+    font-weight: 700;
+  }
+
+  .daily-review-focus-changes {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+
+  .daily-review-focus-sources {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .daily-review-cell-content {
+    min-width: 0;
+    color: inherit;
+  }
+
+  .daily-review-cell-content > :first-child {
+    margin-top: 0;
+  }
+
+  .daily-review-cell-content > :last-child {
+    margin-bottom: 0;
   }
 
   .daily-review-announcements {
@@ -450,37 +570,37 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .daily-review-announcement-list {
-    border-top: 1px solid var(--border);
+  .daily-review-announcement-table {
+    min-width: 58rem;
+    table-layout: fixed;
   }
 
-  .daily-review-announcement-item {
-    border-bottom: 1px solid var(--border);
-    background: var(--background);
+  .daily-review-announcement-table thead th:nth-child(1) {
+    width: 4rem;
   }
 
-  .daily-review-announcement-item > summary {
-    display: grid;
-    grid-template-columns: auto minmax(9rem, 0.72fr) minmax(
-        14rem,
-        1.5fr
-      ) minmax(8rem, auto) auto;
-    align-items: center;
-    gap: 0.75rem 1rem;
-    min-height: 4.5rem;
-    padding: 0.875rem 0.75rem;
-    list-style: none;
-    transition: background-color 150ms ease;
-    cursor: pointer;
+  .daily-review-announcement-table thead th:nth-child(2) {
+    width: 9rem;
   }
 
-  .daily-review-announcement-item > summary::-webkit-details-marker {
-    display: none;
+  .daily-review-announcement-table thead th:nth-child(3) {
+    width: 13rem;
   }
 
-  .daily-review-announcement-item > summary:hover,
-  .daily-review-announcement-item[open] > summary {
-    background: color-mix(in srgb, var(--muted) 68%, transparent);
+  .daily-review-announcement-table thead th:nth-child(4) {
+    width: 20rem;
+  }
+
+  .daily-review-announcement-table thead th:nth-child(5) {
+    width: 8rem;
+  }
+
+  .daily-review-announcement-table thead th:nth-child(6) {
+    width: 3rem;
+  }
+
+  .daily-review-announcement-table tbody th[scope="row"] {
+    font-weight: 400;
   }
 
   .daily-review-market-badge {
@@ -503,10 +623,6 @@
     border-color: color-mix(in srgb, #b7791f 30%, var(--border));
     background: color-mix(in srgb, #b7791f 10%, var(--background));
     color: light-dark(#8a5212, #f2bd67);
-  }
-
-  .daily-review-announcement-identity {
-    min-width: 0;
   }
 
   .daily-review-announcement-company,
@@ -543,6 +659,11 @@
     line-height: 1.45;
   }
 
+  .daily-review-announcement-action {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
   .daily-review-announcement-chevron {
     width: 1rem;
     height: 1rem;
@@ -550,17 +671,21 @@
     transition: transform 150ms ease;
   }
 
-  .daily-review-announcement-item[open] .daily-review-announcement-chevron {
+  .daily-review-announcement-chevron.is-expanded {
     transform: rotate(180deg);
+  }
+
+  .daily-review-announcement-detail-row > td {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    background: color-mix(in srgb, var(--muted) 22%, var(--background));
   }
 
   .daily-review-announcement-detail {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.25rem 2rem;
-    padding: 1.25rem 2.75rem 1.75rem 4.5rem;
-    border-top: 1px solid var(--border);
-    background: color-mix(in srgb, var(--muted) 35%, var(--background));
+    padding: 1.25rem 1.5rem 1.5rem;
   }
 
   .daily-review-announcement-field {

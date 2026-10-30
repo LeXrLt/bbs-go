@@ -24,12 +24,12 @@
 
 | `kind` | 页面板块 | 建议文件含义 |
 | --- | --- | --- |
-| `shareholding` | 港股增持 | 港股增持 Markdown |
+| `focus` | 重点公司变化 | 重点公司变化 Markdown |
+| `shareholding` | 增持 | 港股增持 Markdown |
 | `announcements` | 公告筛选 | 公告筛选 Markdown |
-| `movers` | 港股涨跌幅 | 港股涨跌幅 Markdown |
-| `focus` | 重点公司 | 重点公司 Markdown |
-| `buybacks` | 港股回购 | 港股回购 Markdown |
-| `shorts` | 港股做空 | 港股做空 Markdown |
+| `movers` | 涨跌幅 | 港股涨跌幅 Markdown |
+| `buybacks` | 回购 | 港股回购 Markdown |
+| `shorts` | 做空 | 港股做空 Markdown |
 
 不要根据文件完成时间推导 `date`。例如 2026-10-28 的公告文件在
 2026-10-29 00:15 才生成，仍应使用 `date=2026-10-28`。
