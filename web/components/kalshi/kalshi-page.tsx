@@ -2,20 +2,16 @@
 
 import * as React from "react"
 import {
-  ActivityIcon,
-  ArrowDownRightIcon,
-  ArrowUpRightIcon,
   CalendarDaysIcon,
   DownloadIcon,
   ExternalLinkIcon,
-  FileTextIcon,
   SearchIcon,
 } from "lucide-react"
 import {
+  Area,
   CartesianGrid,
-  Legend,
+  ComposedChart,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -25,8 +21,6 @@ import { useNavigate } from "react-router"
 
 import { HtmlImagePreview } from "@/components/common/image-preview"
 import { MainShell } from "@/components/layout/main-shell"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import type { KalshiReport, KalshiRow } from "@/lib/api/kalshi"
 
 type PageData = {
@@ -35,192 +29,693 @@ type PageData = {
   report: KalshiReport | null
   error: boolean
 }
+type Sort = "date" | "rise" | "abs" | "vol"
+const signals = ["新上线", "价格异动", "观察"] as const
+const signalOrder: Record<string, number> = { 价格异动: 0, 新上线: 1, 观察: 2 }
+const integer = new Intl.NumberFormat("zh-CN")
 
-const views = [
-  { key: "overview", label: "概览" },
-  { key: "signals", label: "合约线索" },
-  { key: "trends", label: "小时走势" },
-  { key: "metadata", label: "采集与来源" },
-  { key: "document", label: "完整文档" },
-] as const
-
-type View = (typeof views)[number]["key"]
-
-const fieldLabels: Record<string, string> = {
-  date: "所属日期", signal: "信号", category: "类别", title_zh: "事件", title_en: "英文标题",
-  event_ticker: "事件代码", series_ticker: "系列代码", market_ticker: "盘口代码",
-  outcome: "代表盘口", prob: "最近成交价", prev_prob: "接口前值", change_pp: "变动（百分点）",
-  volume: "事件成交份数", market_volume: "盘口成交份数", opened: "开盘时间",
-  related: "相关标的", note: "研究含义", link: "合约链接", key: "记录标识",
-  bid: "买价", ask: "卖价", spread_pp: "买卖价差（百分点）",
-  rules_primary: "主要结算规则", rules_secondary: "补充结算规则",
-  observed_at: "报价观察时间", selection_basis: "盘口选择依据",
-  prev_prob_basis: "接口前值口径", editorial_status: "内容复核状态",
-  source_url: "数据来源", source_search_total_volume: "搜索返回成交份数",
-  cohort: "入选批次", rank: "批次名次", event_volume: "事件成交份数",
-  ts: "K 线时间（UTC）", close: "小时成交价", vol: "小时成交份数",
+function value(v: unknown): string {
+  if (v == null || v === "") return "—"
+  return typeof v === "object" ? JSON.stringify(v, null, 2) : String(v)
 }
-
-function text(value: unknown) {
-  if (value === null || value === undefined || value === "") return "—"
-  if (typeof value === "object") return JSON.stringify(value, null, 2)
-  return String(value)
+function num(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null
 }
-
-function numeric(value: unknown) {
-  return typeof value === "number" ? value : null
+function count(v: unknown): string {
+  const n = num(v)
+  return n == null ? "—" : integer.format(n)
 }
-
-function percent(value: unknown) {
-  const n = numeric(value)
-  return n === null ? "—" : `${(n * 100).toFixed(n * 100 % 1 ? 1 : 0)}%`
+function pct(v: unknown): string {
+  const n = num(v)
+  return n == null ? "—" : `${Math.round(n * 100)}%`
 }
-
-function number(value: unknown) {
-  const n = numeric(value)
-  return n === null ? "—" : new Intl.NumberFormat("zh-CN").format(n)
-}
-
-function time(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return new Intl.DateTimeFormat("zh-CN", {
-    timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).format(date)
-}
-
-function safeURL(value: unknown) {
-  if (typeof value !== "string") return null
+function safeLink(v: unknown): string | null {
+  if (typeof v !== "string") return null
   try {
-    const url = new URL(value)
+    const url = new URL(v)
     return url.protocol === "https:" ? url.toString() : null
   } catch {
     return null
   }
 }
+function compareRows(a: KalshiRow, b: KalshiRow, sort: Sort): number {
+  const fallback =
+    value(b.date).localeCompare(value(a.date)) ||
+    (signalOrder[value(a.signal)] ?? 3) - (signalOrder[value(b.signal)] ?? 3) ||
+    Math.abs(num(b.change_pp) ?? 0) - Math.abs(num(a.change_pp) ?? 0)
+  if (sort === "date") return fallback
+  const metric = (r: KalshiRow) =>
+    sort === "vol"
+      ? num(r.volume)
+      : sort === "abs"
+        ? num(r.change_pp) == null
+          ? null
+          : Math.abs(num(r.change_pp)!)
+        : num(r.change_pp)
+  const x = metric(a),
+    y = metric(b)
+  return x == null || y == null
+    ? x == null && y == null
+      ? fallback
+      : x == null
+        ? 1
+        : -1
+    : y - x || fallback
+}
 
-function DetailFields({ row }: { row: KalshiRow }) {
+function Detail({ row }: { row: KalshiRow }) {
   return (
-    <div className="kalshi-fields">
-      {Object.entries(row).map(([key, value]) => {
-        const href = (key === "link" || key === "source_url") && safeURL(value)
+    <dl className="kalshi-detail-grid">
+      {Object.entries(row).map(([key, entry]) => {
+        const href =
+          key === "link" || key === "source_url" ? safeLink(entry) : null
         return (
-          <div className="kalshi-field" key={key}>
-            <dt>{fieldLabels[key] || key}</dt>
-            <dd>{href ? <a href={href} target="_blank" rel="noopener noreferrer">{href} <ExternalLinkIcon className="inline size-3" /></a> : text(value)}</dd>
+          <div key={key}>
+            <dt>{key}</dt>
+            <dd>
+              {href ? (
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  {href} <ExternalLinkIcon size={12} />
+                </a>
+              ) : (
+                value(entry)
+              )}
+            </dd>
           </div>
         )
       })}
-    </div>
+    </dl>
   )
 }
 
-function Signals({ rows }: { rows: KalshiRow[] }) {
-  const [query, setQuery] = React.useState("")
+function TrendCard({ rows }: { rows: KalshiRow[] }) {
+  const points = [...rows].sort((a, b) =>
+    value(a.ts).localeCompare(value(b.ts))
+  )
+  const first = points[0],
+    last = points[points.length - 1]
+  if (!first || !last) return null
+  const opened = Date.parse(value(first.opened))
+  const start = Number.isFinite(opened)
+    ? Math.min(opened, Date.parse(value(first.ts)))
+    : Date.parse(value(first.ts))
+  const finish = Date.parse(value(last.ts))
+  const lastTrade = [...points].reverse().find((p) => num(p.close) != null)
+  const middle = (p: KalshiRow) => {
+    const bid = num(p.bid),
+      ask = num(p.ask)
+    return bid != null && ask != null && bid <= ask && ask - bid <= 0.100001
+      ? (bid + ask) / 2
+      : null
+  }
+  const data = points.map((p) => ({
+    ts: Date.parse(value(p.ts)),
+    band:
+      num(p.bid) != null && num(p.ask) != null && num(p.bid)! <= num(p.ask)!
+        ? [num(p.bid)!, num(p.ask)!]
+        : null,
+    middle: middle(p),
+    close: num(p.close),
+  }))
+  const spread =
+    num(last.bid) != null && num(last.ask) != null
+      ? `${Math.round((num(last.ask)! - num(last.bid)!) * 100)}个百分点`
+      : "—"
+  const href = safeLink(first.link)
+  return (
+    <article className="kalshi-trend-item">
+      <h3>
+        {href ? (
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {value(first.rank)}. {value(first.title_zh)}
+          </a>
+        ) : (
+          `${value(first.rank)}. ${value(first.title_zh)}`
+        )}
+      </h3>
+      <p>
+        结果 <b>{value(first.outcome)}</b> · 中间价 <b>{pct(middle(last))}</b> ·
+        价差 <b>{spread}</b> · 最近成交{" "}
+        <b>{lastTrade ? pct(lastTrade.close) : "无"}</b> · 成交量{" "}
+        <b>{count(first.event_volume)}</b>
+      </p>
+      <div
+        className="kalshi-mini-chart"
+        role="img"
+        aria-label={`${value(first.title_zh)} 价格走势`}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={data}
+            margin={{ top: 5, right: 8, bottom: 0, left: -16 }}
+          >
+            <CartesianGrid vertical={false} stroke="var(--border)" />
+            <XAxis
+              dataKey="ts"
+              type="number"
+              domain={[start, Math.max(finish, start + 3600000)]}
+              scale="time"
+              tickFormatter={(s: number) =>
+                new Date(s).toISOString().slice(5, 10).replace("-", "/")
+              }
+              minTickGap={35}
+              tick={{ fontSize: 10 }}
+              tickLine={false}
+            />
+            <YAxis
+              domain={[0, 1]}
+              ticks={[0, 0.5, 1]}
+              tickFormatter={(n: number) => `${Math.round(n * 100)}%`}
+              tick={{ fontSize: 10 }}
+              tickLine={false}
+            />
+            <Tooltip
+              labelFormatter={(s) =>
+                `${new Date(Number(s)).toISOString().slice(0, 16).replace("T", " ")} UTC`
+              }
+              formatter={(v, name) => [
+                Array.isArray(v) ? `${pct(v[0])}–${pct(v[1])}` : pct(v),
+                name,
+              ]}
+            />
+            <Area
+              dataKey="band"
+              name="买卖报价区间"
+              type="stepAfter"
+              fill="#3b6fd8"
+              fillOpacity={0.13}
+              stroke="none"
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+            <Line
+              dataKey="middle"
+              name="窄价差中间价"
+              type="stepAfter"
+              stroke="#3b6fd8"
+              strokeWidth={1.5}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+            <Line
+              dataKey="close"
+              name="实际成交价"
+              stroke="none"
+              dot={{ r: 2.5, fill: "var(--foreground)", stroke: "none" }}
+              activeDot={{ r: 4 }}
+              connectNulls={false}
+              isAnimationActive={false}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+    </article>
+  )
+}
+
+function Dashboard({ report }: { report: KalshiReport }) {
+  const [cohort, setCohort] = React.useState("")
   const [signal, setSignal] = React.useState("")
   const [category, setCategory] = React.useState("")
+  const [sort, setSort] = React.useState<Sort>("date")
+  const [query, setQuery] = React.useState("")
+  const [range, setRange] = React.useState<"30d" | "all">("30d")
   const [expanded, setExpanded] = React.useState<string | null>(null)
-  const categories = [...new Set(rows.map((r) => text(r.category)).filter((v) => v !== "—"))].sort()
-  const matching = rows.filter((r) =>
-    (!signal || r.signal === signal) && (!category || r.category === category) &&
-    (!query || Object.values(r).some((v) => text(v).toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+  const rows = report.signals.rows,
+    trends = report.trends.rows
+  const cohorts = [...new Set(trends.map((r) => value(r.cohort)))]
+    .sort()
+    .reverse()
+  const selectedCohort = cohorts.includes(cohort) ? cohort : cohorts[0]
+  const cohortRows = trends.filter((r) => r.cohort === selectedCohort)
+  const markets = [...new Set(cohortRows.map((r) => value(r.market_ticker)))]
+    .map((ticker) => cohortRows.filter((r) => r.market_ticker === ticker))
+    .sort(
+      (a, b) => (num(a[0]?.rank) ?? Infinity) - (num(b[0]?.rank) ?? Infinity)
+    )
+  const categories = [...new Set(rows.map((r) => value(r.category)))].sort()
+  const term = query.trim().toLocaleLowerCase()
+  const visible = rows
+    .filter(
+      (r) =>
+        (!signal || r.signal === signal) &&
+        (!category || r.category === category) &&
+        (!term ||
+          [
+            r.title_zh,
+            r.title_en,
+            r.event_ticker,
+            r.series_ticker,
+            r.related,
+            r.note,
+            r.outcome,
+          ].some(
+            (v) => v != null && String(v).toLocaleLowerCase().includes(term)
+          ))
+    )
+    .sort((a, b) => compareRows(a, b, sort))
+  const end = report.date
+  const since = new Date(`${end}T00:00:00Z`)
+  since.setUTCDate(since.getUTCDate() - 29)
+  const from = since.toISOString().slice(0, 10)
+  const categoryRows = rows.filter(
+    (r) => range === "all" || (value(r.date) >= from && value(r.date) <= end)
   )
+  const totals = [...new Set(categoryRows.map((r) => value(r.category)))]
+    .map((name) => ({
+      name,
+      total: categoryRows.filter((r) => value(r.category) === name).length,
+    }))
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+  const max = Math.max(1, ...totals.map((r) => r.total))
+  const counts = Object.fromEntries(
+    signals.map((name) => [
+      name,
+      rows.filter((r) => r.signal === name && r.date === end).length,
+    ])
+  )
+  const firstDate = [...rows.map((r) => value(r.date))].sort()[0]
   return (
-    <section className="kalshi-section">
-      <div className="kalshi-section-heading"><div><h2>合约线索</h2><p>共 {rows.length} 条，当前显示 {matching.length} 条；每条记录可展开全部原始字段。</p></div></div>
-      <div className="kalshi-toolbar">
-        <label className="kalshi-search"><SearchIcon className="size-4" /><Input aria-label="搜索合约线索" placeholder="搜索事件、代码或规则" value={query} onChange={(e) => setQuery(e.target.value)} /></label>
-        <select aria-label="筛选信号" value={signal} onChange={(e) => setSignal(e.target.value)}><option value="">所有信号</option>{[...new Set(rows.map((r) => text(r.signal)))].map((v) => <option key={v} value={v}>{v}</option>)}</select>
-        <select aria-label="筛选类别" value={category} onChange={(e) => setCategory(e.target.value)}><option value="">所有类别</option>{categories.map((v) => <option key={v} value={v}>{v}</option>)}</select>
-      </div>
-      <div className="kalshi-table-scroll"><table className="kalshi-table"><thead><tr><th>信号 / 类别</th><th>事件与盘口</th><th>成交价</th><th>变动</th><th>成交份数</th><th>观察时间</th></tr></thead><tbody>
-        {matching.map((row, index) => {
-          const id = text(row.key) + index
-          const open = expanded === id
-          const delta = numeric(row.change_pp)
-          return <React.Fragment key={id}>
-            <tr className="kalshi-clickable" onClick={() => setExpanded(open ? null : id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(open ? null : id) } }} tabIndex={0} aria-expanded={open}>
-              <td><span className={`kalshi-signal kalshi-signal-${row.signal === "新上线" ? "new" : row.signal === "价格异动" ? "move" : "watch"}`}>{text(row.signal)}</span><small>{text(row.category)}</small></td>
-              <td className="kalshi-title-cell"><strong>{text(row.title_zh)}</strong><small>{text(row.outcome)} · {text(row.event_ticker)}</small></td>
-              <td className="kalshi-num">{percent(row.prob)}</td>
-              <td className={`kalshi-num ${delta !== null && delta > 0 ? "kalshi-up" : delta !== null && delta < 0 ? "kalshi-down" : ""}`}>{delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta}`}</td>
-              <td className="kalshi-num">{number(row.volume)}</td><td>{row.observed_at ? time(text(row.observed_at)) : "—"}</td>
-            </tr>
-            {open ? <tr className="kalshi-expanded"><td colSpan={6}><DetailFields row={row} /></td></tr> : null}
-          </React.Fragment>
-        })}
-      </tbody></table></div>
-      {!matching.length && <p className="kalshi-empty">没有符合条件的记录。</p>}
-    </section>
+    <>
+      <header className="kalshi-heading">
+        <h1>Kalshi新合约看板</h1>
+        <p className="kalshi-run-state">
+          扫描截至 {report.as_of} · {report.manifest.collection_status} ·
+          今日数据为分类标签搜索样本，非全站穷尽
+        </p>
+        <p>
+          截至扫描（<b>{end}</b>）累计记录 <b>{count(rows.length)}</b>{" "}
+          条线索；本日新上线事件 <b>{counts["新上线"]}</b> 条，价格异动{" "}
+          <b>{counts["价格异动"]}</b> 条，持续观察 <b>{counts["观察"]}</b>{" "}
+          条。体育类逐场盘口和15分钟、每小时、每日滚动合约不计入。
+        </p>
+      </header>
+      {report.manifest.collection_status !== "complete" && (
+        <p className="kalshi-alert">
+          本次采集存在覆盖缺口，请结合文档中的数据缺口说明查看。
+        </p>
+      )}
+      <section className="kalshi-tiles" aria-label="信号计数">
+        <div>
+          <span>今日新上线</span>
+          <strong>{counts["新上线"]}</strong>
+          <small>Kalshi新开出的非体育合约</small>
+        </div>
+        <div>
+          <span>今日价格异动</span>
+          <strong>{counts["价格异动"]}</strong>
+          <small>较接口前值变动至少10个百分点</small>
+        </div>
+        <div>
+          <span>今日观察</span>
+          <strong>{counts["观察"]}</strong>
+          <small>成交活跃、与投资相关的存量合约</small>
+        </div>
+      </section>
+      <section className="kalshi-panel" id="top10-trend">
+        <h2>新上线Top10走势</h2>
+        <p>
+          每次扫描按事件成交量选出新上线合约前10名（成交量为0的不入选），上线后连续跟踪7天。线为价差不超过10个百分点的买卖中间价（每小时），浅色带为买价到卖价区间，圆点为实际成交价。买卖价差越宽，价格越不可靠。
+        </p>
+        <label className="kalshi-select-label">
+          批次{" "}
+          <select
+            aria-label="入选日期"
+            value={selectedCohort || ""}
+            onChange={(e) => setCohort(e.target.value)}
+          >
+            {cohorts.map((c) => (
+              <option key={c} value={c}>
+                {c}（
+                {
+                  new Set(
+                    trends
+                      .filter((r) => r.cohort === c)
+                      .map((r) => value(r.market_ticker))
+                  ).size
+                }
+                个）
+              </option>
+            ))}
+          </select>
+        </label>
+        {markets.length ? (
+          <div className="kalshi-trend-grid">
+            {markets.map((series) => (
+              <TrendCard key={value(series[0]?.market_ticker)} rows={series} />
+            ))}
+          </div>
+        ) : (
+          <p className="kalshi-empty">这一批次暂无走势数据。</p>
+        )}
+      </section>
+      <section className="kalshi-panel" id="signals">
+        <h2>线索明细</h2>
+        <p>
+          点标题打开Kalshi合约页。成交价为所选代表盘口的最近成交价，变动与同一盘口的接口前值比较；前值周期未独立核实。成交很薄的合约价格仅供参考。
+        </p>
+        <div className="kalshi-filters">
+          <div className="kalshi-segment" role="group" aria-label="信号类型">
+            {["", ...signals].map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={signal === s}
+                onClick={() => setSignal(s)}
+              >
+                {s || "全部"}
+              </button>
+            ))}
+          </div>
+          <select
+            aria-label="类别"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">全部类别</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <label className="kalshi-select-label">
+            排序{" "}
+            <select
+              aria-label="排序方式"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as Sort)}
+            >
+              <option value="date">最新日期</option>
+              <option value="rise">涨幅最大（百分点）</option>
+              <option value="abs">变动幅度最大（涨跌都算）</option>
+              <option value="vol">成交量最大</option>
+            </select>
+          </label>
+          <label className="kalshi-search">
+            <SearchIcon size={16} />
+            <input
+              type="search"
+              aria-label="搜索"
+              placeholder="搜索标题、代码、相关股票"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+        </div>
+        <div className="kalshi-tablebox">
+          <table className="kalshi-table">
+            <thead>
+              <tr>
+                <th>日期</th>
+                <th>信号</th>
+                <th className="kalshi-hide-narrow">类别</th>
+                <th>合约</th>
+                <th>代表盘口结果</th>
+                <th>最近成交价</th>
+                <th>变动</th>
+                <th className="kalshi-hide-narrow">成交量</th>
+                <th className="kalshi-hide-narrow">相关标的</th>
+                <th>投资含义</th>
+                <th>明细</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((r, i) => {
+                const key = `${value(r.key)}-${i}`,
+                  href = safeLink(r.link),
+                  delta = num(r.change_pp)
+                return (
+                  <React.Fragment key={key}>
+                    <tr>
+                      <td className="kalshi-num">{value(r.date)}</td>
+                      <td>
+                        <span
+                          className={`kalshi-pill ${r.signal === "新上线" ? "new" : r.signal === "价格异动" ? "move" : "watch"}`}
+                        >
+                          {value(r.signal)}
+                        </span>
+                      </td>
+                      <td className="kalshi-hide-narrow">
+                        {value(r.category)}
+                      </td>
+                      <td className="kalshi-title">
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {value(r.title_zh)}
+                          </a>
+                        ) : (
+                          value(r.title_zh)
+                        )}
+                        <small>
+                          {value(r.event_ticker || r.series_ticker)}
+                          {r.opened && r.opened !== "—"
+                            ? ` · 开盘 ${r.opened}`
+                            : ""}
+                        </small>
+                      </td>
+                      <td>{value(r.outcome)}</td>
+                      <td className="kalshi-num">{pct(r.prob)}</td>
+                      <td
+                        className={`kalshi-num ${delta != null && delta > 0 ? "kalshi-up" : delta != null && delta < 0 ? "kalshi-down" : ""}`}
+                      >
+                        {delta == null
+                          ? "—"
+                          : `${delta > 0 ? "+" : ""}${delta}`}
+                      </td>
+                      <td className="kalshi-num kalshi-hide-narrow">
+                        {count(r.volume)}
+                      </td>
+                      <td className="kalshi-hide-narrow">{value(r.related)}</td>
+                      <td className="kalshi-note">{value(r.note)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="kalshi-detail-toggle"
+                          aria-label={`${value(r.title_zh)}全部字段`}
+                          aria-expanded={expanded === key}
+                          onClick={() =>
+                            setExpanded(expanded === key ? null : key)
+                          }
+                        >
+                          {expanded === key ? "收起" : "查看"}
+                        </button>
+                      </td>
+                    </tr>
+                    {expanded === key && (
+                      <tr>
+                        <td colSpan={11}>
+                          <Detail row={r} />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!visible.length && (
+          <p className="kalshi-empty">没有符合筛选条件的线索。</p>
+        )}
+      </section>
+      <section className="kalshi-panel" id="by-category">
+        <h2>线索按类别分布</h2>
+        <p>
+          {range === "all"
+            ? `全部历史记录（${firstDate || "—"} 至 ${end}）`
+            : `近30天（${from} 至 ${end}）`}
+          每个类别的线索条数
+        </p>
+        <div className="kalshi-segment" role="group" aria-label="时间范围">
+          <button
+            type="button"
+            aria-pressed={range === "30d"}
+            onClick={() => setRange("30d")}
+          >
+            近30天
+          </button>
+          <button
+            type="button"
+            aria-pressed={range === "all"}
+            onClick={() => setRange("all")}
+          >
+            全部
+          </button>
+        </div>
+        {totals.length ? (
+          <div
+            className="kalshi-category-chart"
+            role="img"
+            aria-label="线索按类别分布"
+          >
+            {totals.map((r) => (
+              <div className="kalshi-category-row" key={r.name}>
+                <span title={r.name}>{r.name}</span>
+                <div>
+                  <i style={{ width: `${(r.total / max) * 100}%` }} />
+                </div>
+                <b>{count(r.total)}</b>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="kalshi-empty">这个时间范围内没有线索。</p>
+        )}
+      </section>
+      <details className="kalshi-method">
+        <summary>口径与说明</summary>
+        <dl>
+          <dt>数据来源</dt>
+          <dd>
+            Kalshi
+            公开行情接口，每日按类别和标签抓取最新上线及热门合约，与已记录线索对比去重。扫描截至{" "}
+            {report.as_of}，状态：{report.manifest.collection_status}。
+          </dd>
+          <dt>新上线</dt>
+          <dd>
+            事件最早开盘时间在本次扫描窗口内，且不属于滚动刷新的短周期合约。
+          </dd>
+          <dt>价格异动</dt>
+          <dd>
+            同一代表盘口最近成交价与 previous_price_dollars
+            相差至少10个百分点，事件累计成交至少1000份；接口前值周期未独立核实。
+          </dd>
+          <dt>观察</dt>
+          <dd>
+            存量事件或新增阈值，不视为新事件；近期成交价不能证明新闻属实。
+          </dd>
+          <dt>成交价</dt>
+          <dd>
+            prob
+            为最近成交价，不是预测概率或买卖中点；无成交留空，宽价差会影响参考价值。
+          </dd>
+          <dt>Top10走势</dt>
+          <dd>
+            本轮新事件按累计成交量选前10，跟踪7天、保留30天。小时买卖报价带、中间价和成交点分别展示；缺失不补造，不延伸为实时报价。
+          </dd>
+          <dt>成交量</dt>
+          <dd>
+            信号表使用搜索接口 total_volume，代表盘口和小时成交分别使用
+            volume_fp。不同层级不混加，份数不等于资金流入。
+          </dd>
+          <dt>相关标的、投资含义</dt>
+          <dd>
+            只标记标题或规则明确点名的公司及直接相关板块；未交叉核验的判断标为待核验。英文标题不等于已完成人工翻译。
+          </dd>
+          <dt>局限</dt>
+          <dd>
+            按配置的类别标签及有限搜索页发现，不保证全站完整。搜索、事件详情、K线分别记状态；部分失败时保留成功部分，具体缺口见完整文档。
+          </dd>
+        </dl>
+      </details>
+    </>
   )
-}
-
-function Trends({ rows }: { rows: KalshiRow[] }) {
-  const markets = React.useMemo(() => [...new Set(rows.map((r) => text(r.market_ticker)))], [rows])
-  const [market, setMarket] = React.useState(markets[0] || "")
-  const selected = markets.includes(market) ? market : markets[0]
-  const points = rows.filter((r) => r.market_ticker === selected).sort((a, b) => text(a.ts).localeCompare(text(b.ts)))
-  const chart = points.map((r) => ({
-    ts: text(r.ts), label: time(text(r.ts)),
-    close: numeric(r.close) === null ? null : numeric(r.close)! * 100,
-    bid: numeric(r.bid) === null ? null : numeric(r.bid)! * 100,
-    ask: numeric(r.ask) === null ? null : numeric(r.ask)! * 100,
-  }))
-  return <section className="kalshi-section">
-    <div className="kalshi-section-heading"><div><h2>小时走势</h2><p>{rows.length} 条原始 K 线，按盘口查看；缺失成交价保持空值，不插补。</p></div><select aria-label="选择盘口" value={selected || ""} onChange={(e) => setMarket(e.target.value)}>{markets.map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
-    {points.length ? <>
-      <div className="kalshi-market-heading"><strong>{text(points[0].title_zh)}</strong><span>{text(points[0].outcome)} · 批次 {text(points[0].cohort)} · 名次 {text(points[0].rank)}</span></div>
-      <div className="kalshi-chart" role="img" aria-label={`${text(points[0].title_zh)} 小时走势`}>
-        <ResponsiveContainer width="100%" height="100%"><LineChart data={chart} margin={{ top: 14, right: 16, left: -18, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" /><XAxis dataKey="label" minTickGap={32} tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} tick={{ fontSize: 11 }} /><Tooltip formatter={(v, name) => [`${Number(v).toFixed(1)}%`, name]} /><Legend /><Line type="stepAfter" dataKey="bid" name="买价" stroke="#457b83" dot={false} connectNulls={false} strokeWidth={1.5} /><Line type="stepAfter" dataKey="ask" name="卖价" stroke="#c79056" dot={false} connectNulls={false} strokeWidth={1.5} /><Line type="stepAfter" dataKey="close" name="成交价" stroke="#365eb6" dot={{ r: 2 }} connectNulls={false} strokeWidth={2} /></LineChart></ResponsiveContainer>
-      </div>
-      <div className="kalshi-table-scroll"><table className="kalshi-table"><thead><tr><th>时间（UTC）</th><th>买价</th><th>卖价</th><th>成交价</th><th>小时成交份数</th><th>完整字段</th></tr></thead><tbody>{points.map((row, i) => <TrendRow key={`${text(row.key)}-${i}`} row={row} />)}</tbody></table></div>
-    </> : <p className="kalshi-empty">没有走势数据。</p>}
-  </section>
-}
-
-function TrendRow({ row }: { row: KalshiRow }) {
-  const [open, setOpen] = React.useState(false)
-  return <><tr><td>{text(row.ts).replace("T", " ")}</td><td>{percent(row.bid)}</td><td>{percent(row.ask)}</td><td>{percent(row.close)}</td><td>{number(row.vol)}</td><td><button className="kalshi-detail-button" type="button" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? "收起" : "查看"}</button></td></tr>{open && <tr className="kalshi-expanded"><td colSpan={6}><DetailFields row={row} /></td></tr>}</>
-}
-
-function Metadata({ report }: { report: KalshiReport }) {
-  const { manifest } = report
-  const coverage = Array.isArray(manifest.metadata.coverage) ? manifest.metadata.coverage : []
-  return <section className="kalshi-section kalshi-metadata"><div className="kalshi-section-heading"><div><h2>采集与来源</h2><p>完整的 manifest、字段口径与覆盖记录均保存在原始文档中。</p></div></div>
-    <dl className="kalshi-metadata-grid"><div><dt>内容日期</dt><dd>{manifest.date}</dd></div><div><dt>扫描截至</dt><dd>{time(manifest.as_of)}</dd></div><div><dt>采集状态</dt><dd>{manifest.collection_status}</dd></div><div><dt>复核待完成</dt><dd>{text(manifest.metadata.editorial_pending)}</dd></div><div><dt>搜索请求</dt><dd>{text(manifest.metadata.search_success)} / {text(manifest.metadata.search_queries)}</dd></div><div><dt>覆盖记录</dt><dd>{coverage.length}</dd></div></dl>
-    <h3>完整 manifest</h3><pre className="kalshi-json">{JSON.stringify(manifest, null, 2)}</pre>
-    <h3>signals.json / trends.json 元数据</h3><pre className="kalshi-json">{JSON.stringify({ signals: report.signals.meta, trends: report.trends.meta }, null, 2)}</pre>
-  </section>
 }
 
 export function KalshiPage({ data }: { data: PageData }) {
   const navigate = useNavigate()
-  const [view, setView] = React.useState<View>("overview")
-  const [documentMode, setDocumentMode] = React.useState<"rendered" | "source">("rendered")
+  const [source, setSource] = React.useState(false)
+  const [documentOpen, setDocumentOpen] = React.useState(false)
   const report = data.report
-  const counts = report?.manifest.counts
-  const download = () => {
+  function download() {
     if (!report) return
-    const url = URL.createObjectURL(new Blob([report.markdown], { type: "text/markdown;charset=utf-8" }))
+    const url = URL.createObjectURL(
+      new Blob([report.markdown], { type: "text/markdown;charset=utf-8" })
+    )
     const anchor = document.createElement("a")
     anchor.href = url
     anchor.download = `kalshi-${report.date}.md`
     anchor.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
-  return <MainShell containerClassName="kalshi-container"><div className="kalshi-page">
-    <header className="kalshi-header"><div className="kalshi-heading"><div className="kalshi-eyebrow"><ActivityIcon className="size-4" /> 市场观察 / Kalshi</div><h1>Kalshi 合约跟踪</h1><p>按文档快照查看合约线索、报价与采集范围</p></div><div className="kalshi-header-actions"><label className="kalshi-date"><CalendarDaysIcon className="size-4" /><select aria-label="选择报告日期" value={data.date} disabled={!data.dates.length} onChange={(e) => navigate(`/kalshi?date=${encodeURIComponent(e.target.value)}`)}>{data.dates.length ? data.dates.map((date) => <option key={date} value={date}>{date}</option>) : <option value="">暂无报告</option>}</select></label><Button variant="outline" size="sm" onClick={download} disabled={!report} title="下载完整 Markdown"><DownloadIcon className="size-4" /> <span>原文</span></Button></div></header>
-    {data.error ? <p className="kalshi-notice kalshi-error">报告暂时无法加载，请稍后重试。</p> : !report ? <p className="kalshi-empty">尚无已发布的 Kalshi 报告。</p> : <>
-      {report.manifest.collection_status !== "complete" && <p className="kalshi-notice">本次采集状态为 {report.manifest.collection_status}，存在覆盖缺口；请查看“采集与来源”。</p>}
-      <div className="kalshi-snapshot"><span>内容日期 <strong>{report.date}</strong></span><span>扫描截至 <strong>{time(report.as_of)}</strong></span><span>发布更新 <strong>{time(report.updated_at)}</strong></span><span className="kalshi-scope">{text(report.manifest.metadata.scope)}</span></div>
-      <div className="kalshi-stats"><div><span>累计线索</span><strong>{number(counts?.signals_total)}</strong><small>样本范围内</small></div><div><span>本日新上线</span><strong>{number(counts?.today_new)}</strong><ArrowUpRightIcon className="size-4" /></div><div><span>价格异动</span><strong>{number(counts?.today_moves)}</strong><ArrowDownRightIcon className="size-4" /></div><div><span>持续观察</span><strong>{number(counts?.today_watch)}</strong><small>跟踪中</small></div><div><span>小时数据</span><strong>{number(counts?.trend_rows)}</strong><small>原始 K 线</small></div></div>
-      <nav className="kalshi-tabs" aria-label="Kalshi 页面视图">{views.map(({ key, label }) => <button type="button" key={key} className={view === key ? "active" : ""} aria-current={view === key ? "page" : undefined} onClick={() => setView(key)}>{key === "document" && <FileTextIcon className="size-4" />}{label}</button>)}</nav>
-      {view === "overview" && <section className="kalshi-section kalshi-prose"><HtmlImagePreview html={report.narrative_html} className="daily-review-content" /></section>}
-      {view === "signals" && <Signals key={report.date} rows={report.signals.rows} />}
-      {view === "trends" && <Trends key={report.date} rows={report.trends.rows} />}
-      {view === "metadata" && <Metadata report={report} />}
-      {view === "document" && <section className="kalshi-section kalshi-document"><div className="kalshi-section-heading"><div><h2>完整文档</h2><p>保留所有章节、原始 JSON 和 HTML 模板；代码仅展示，不在论坛中执行。</p></div><div className="kalshi-document-modes" role="group" aria-label="文档查看方式"><button type="button" aria-pressed={documentMode === "rendered"} onClick={() => setDocumentMode("rendered")}>排版</button><button type="button" aria-pressed={documentMode === "source"} onClick={() => setDocumentMode("source")}>原始 Markdown</button></div></div>{documentMode === "rendered" ? <HtmlImagePreview html={report.content_html} className="daily-review-content" /> : <pre className="kalshi-source">{report.markdown}</pre>}</section>}
-    </>}
-  </div></MainShell>
+  return (
+    <MainShell containerClassName="kalshi-container">
+      <div className="kalshi-page">
+        <div className="kalshi-controls">
+          <label>
+            <CalendarDaysIcon size={16} /> 报告日期{" "}
+            <select
+              aria-label="选择报告日期"
+              value={data.date}
+              disabled={!data.dates.length}
+              onChange={(e) =>
+                navigate(`/kalshi?date=${encodeURIComponent(e.target.value)}`)
+              }
+            >
+              {data.dates.length ? (
+                data.dates.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))
+              ) : (
+                <option value="">暂无报告</option>
+              )}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={!report}
+            onClick={download}
+            title="下载完整 Markdown"
+          >
+            <DownloadIcon size={16} /> 原文
+          </button>
+        </div>
+        {data.error ? (
+          <p className="kalshi-alert">报告暂时无法加载，请稍后重试。</p>
+        ) : report ? (
+          <>
+            <Dashboard key={report.date} report={report} />
+            <details
+              className="kalshi-document"
+              onToggle={(e) => setDocumentOpen(e.currentTarget.open)}
+            >
+              <summary>完整文档与原始数据</summary>
+              {documentOpen && (
+                <>
+                  <div
+                    className="kalshi-segment"
+                    role="group"
+                    aria-label="文档查看方式"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={!source}
+                      onClick={() => setSource(false)}
+                    >
+                      排版
+                    </button>
+                    <button
+                      type="button"
+                      aria-pressed={source}
+                      onClick={() => setSource(true)}
+                    >
+                      原始 Markdown
+                    </button>
+                  </div>
+                  {source ? (
+                    <pre>{report.markdown}</pre>
+                  ) : (
+                    <HtmlImagePreview
+                      html={report.content_html}
+                      className="kalshi-markdown"
+                    />
+                  )}
+                </>
+              )}
+            </details>
+          </>
+        ) : (
+          <p className="kalshi-empty">尚无已发布的 Kalshi 报告。</p>
+        )}
+      </div>
+    </MainShell>
+  )
 }
