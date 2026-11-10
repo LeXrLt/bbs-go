@@ -21,6 +21,7 @@ var Models = []interface{}{
 	&ForbiddenWord{},
 	&Attachment{}, &AttachmentDownloadLog{},
 	&DailyReviewReport{}, &DailyReviewReportRevision{},
+	&KalshiReport{}, &KalshiReportRevision{},
 }
 
 type Model struct {
@@ -43,13 +44,33 @@ type DailyReviewReport struct {
 // DailyReviewReportRevision keeps the previous snapshot when a report changes.
 type DailyReviewReportRevision struct {
 	Model
-	ReportId        int64  `gorm:"not null;index:idx_daily_review_revision_report_id" json:"reportId"`
-	Title           string `gorm:"size:250;not null" json:"title"`
-	Markdown        string `gorm:"type:text;not null" json:"-"`
-	SummaryJson     string `gorm:"type:text;not null" json:"-"`
-	ContentHash     string `gorm:"size:64;not null" json:"-"`
-	ReportUpdateTime int64 `gorm:"not null;default:0" json:"reportUpdateTime"`
-	ReplacedAt      int64  `gorm:"not null;default:0;index:idx_daily_review_revision_replaced_at" json:"replacedAt"`
+	ReportId         int64  `gorm:"not null;index:idx_daily_review_revision_report_id" json:"reportId"`
+	Title            string `gorm:"size:250;not null" json:"title"`
+	Markdown         string `gorm:"type:text;not null" json:"-"`
+	SummaryJson      string `gorm:"type:text;not null" json:"-"`
+	ContentHash      string `gorm:"size:64;not null" json:"-"`
+	ReportUpdateTime int64  `gorm:"not null;default:0" json:"reportUpdateTime"`
+	ReplacedAt       int64  `gorm:"not null;default:0;index:idx_daily_review_revision_replaced_at" json:"replacedAt"`
+}
+
+// KalshiReport stores the complete, validated handoff document for one date.
+type KalshiReport struct {
+	Model
+	ReportDate  time.Time `gorm:"type:date;not null;uniqueIndex:uk_kalshi_report_date"`
+	AsOf        time.Time `gorm:"not null"`
+	Markdown    string    `gorm:"type:text;not null"`
+	ContentHash string    `gorm:"size:64;not null"`
+	CreateTime  int64     `gorm:"not null;default:0"`
+	UpdateTime  int64     `gorm:"not null;default:0"`
+}
+
+type KalshiReportRevision struct {
+	Model
+	ReportId    int64     `gorm:"not null;index:idx_kalshi_revision_report_id"`
+	AsOf        time.Time `gorm:"not null"`
+	Markdown    string    `gorm:"type:text;not null"`
+	ContentHash string    `gorm:"size:64;not null"`
+	ReplacedAt  int64     `gorm:"not null;default:0"`
 }
 
 type Migration struct {

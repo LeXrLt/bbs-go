@@ -258,6 +258,11 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	dailyReviewGroup.GET("/report/:kind", apiHandlers.DailyReviewReport)
 	dailyReviewGroup.POST("/ingest/:kind", apiHandlers.DailyReviewIngest)
 
+	kalshiGroup := group.Group("/kalshi")
+	kalshiGroup.GET("/dates", apiHandlers.KalshiDates)
+	kalshiGroup.GET("/status", apiHandlers.KalshiStatus)
+	kalshiGroup.GET("/report", apiHandlers.KalshiReport)
+	kalshiGroup.POST("/ingest", apiHandlers.KalshiIngest)
 }
 
 func registerAdminRoutes(group *gin.RouterGroup) {

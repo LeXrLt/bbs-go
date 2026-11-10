@@ -38,3 +38,9 @@ func TestDailyReviewIngestPermissionIsRegistered(t *testing.T) {
 		t.Fatalf("expected dashboard.dailyReview.ingest permission to be registered")
 	}
 }
+
+func TestKalshiIngestPermissionIsRegistered(t *testing.T) {
+	if _, ok := FindByCode("dashboard.kalshi.ingest"); !ok {
+		t.Fatalf("expected dashboard.kalshi.ingest permission to be registered")
+	}
+}
