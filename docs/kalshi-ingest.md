@@ -6,15 +6,17 @@
 
 ## 1. 数据与更新规则
 
-页面地址为 `/kalshi`。每份文件由内嵌 `manifest.json` 的 `date` 确定所属日期，
+页面地址为 `/kalshi`，默认显示最新已发布报告；可按自然日切换、选“今天”或“最新”，
+未发布日期会显示空状态。每份文件由内嵌 `manifest.json` 的 `date` 确定所属日期，
 而非推送当天的系统日期。每天可多次推送：同日同内容返回 `unchanged`；同日内容
 改变返回 `updated`，旧版保存在 revision 表；首次发布返回 `created`。如果新文件的
 `as_of` 早于该日已发布版本，服务端拒绝覆盖。同一时间戳内容变化可以更新，推送端
 仍应保证来源明确，避免用旧文件覆盖新文件。
 
 必须推送**整个** UTF-8 `.md` 文件，不能只抽取摘要、表格或两份 JSON。BBS
-保留原文、manifest、signals、trends 和代码块；`index.html` 作为代码展示，
-不在论坛中执行。`collection_status=partial` 且 `publication_ready=true` 可以发布，
+保留原文、manifest、signals、trends 和代码块；页面依据数据展示独立看板，
+不在论坛中执行 `index.html`。完整 Markdown 可从页面顶部“原文”下载。
+`collection_status=partial` 且 `publication_ready=true` 可以发布，
 页面保留缺口提示；`publication_ready=false` 不可发布。
 
 ## 2. 与每日复盘共用 token

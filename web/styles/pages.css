@@ -104,13 +104,15 @@
 @layer components {
   .kalshi-container { max-width: 1160px; }
   .kalshi-page { --kalshi-accent: #3b6fd8; display: grid; gap: 20px; min-width: 0; padding: 1.5rem 0 3rem; color: var(--foreground); font-size: 14px; }
-  .kalshi-controls { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .kalshi-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .kalshi-date-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .kalshi-controls label, .kalshi-controls button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; font-size: 12px; color: var(--muted-foreground); }
   .kalshi-controls label { padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; }
   .kalshi-controls button { padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); }
   .kalshi-controls button:hover:not(:disabled) { border-color: var(--kalshi-accent); }
   .kalshi-controls button:disabled { opacity: .45; cursor: not-allowed; }
-  .kalshi-controls select { color: var(--foreground); background: transparent; border: 0; padding: 5px 2px; }
+  .kalshi-date-controls .kalshi-date-arrow { width: 34px; justify-content: center; padding: 0; }
+  .kalshi-date-field input { width: 125px; min-width: 0; color: var(--foreground); background: transparent; border: 0; padding: 5px 2px; font-size: 12px; }
   .kalshi-heading { display: grid; gap: 7px; padding: 0; border: 0; }
   .kalshi-heading h1 { margin: 0; font-size: 26px; font-family: Georgia, "Songti SC", serif; font-weight: 400; line-height: 1.35; }
   .kalshi-heading p { margin: 0; max-width: 85ch; color: var(--muted-foreground); line-height: 1.65; }
@@ -168,25 +170,11 @@
   .kalshi-category-row div { min-width: 0; }
   .kalshi-category-row i { display: block; height: 22px; border-radius: 3px; background: var(--kalshi-accent); }
   .kalshi-category-row b { font-weight: 400; font-variant-numeric: tabular-nums; }
-  .kalshi-method, .kalshi-document { color: var(--muted-foreground); font-size: 12px; }
-  .kalshi-method summary, .kalshi-document summary { width: fit-content; cursor: pointer; color: var(--foreground); }
+  .kalshi-method { color: var(--muted-foreground); font-size: 12px; }
+  .kalshi-method summary { width: fit-content; cursor: pointer; color: var(--foreground); }
   .kalshi-method dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 14px; margin-top: 10px; }
   .kalshi-method dt { color: var(--foreground); }
   .kalshi-method dd { margin: 0; }
-  .kalshi-document { border-top: 1px solid var(--border); padding-top: 16px; }
-  .kalshi-document .kalshi-segment { margin: 14px 0; }
-  .kalshi-markdown { max-width: 100%; overflow-wrap: anywhere; color: var(--foreground); line-height: 1.7; }
-  .kalshi-markdown h1, .kalshi-markdown h2, .kalshi-markdown h3 { margin: 1.5rem 0 .5rem; font-weight: 600; }
-  .kalshi-markdown h1 { font-size: 1.35rem; }
-  .kalshi-markdown h2 { font-size: 1.15rem; }
-  .kalshi-markdown h3 { font-size: 1rem; }
-  .kalshi-markdown p, .kalshi-markdown ul, .kalshi-markdown ol { margin: .75rem 0; }
-  .kalshi-markdown ul, .kalshi-markdown ol { padding-left: 1.5rem; }
-  .kalshi-markdown a { color: var(--kalshi-accent); text-decoration: underline; }
-  .kalshi-markdown table, .kalshi-markdown .daily-review-table-scroll { display: block; max-width: 100%; overflow-x: auto; }
-  .kalshi-markdown th, .kalshi-markdown td { padding: .45rem .65rem; border: 1px solid var(--border); text-align: left; }
-  .kalshi-markdown pre { overflow: auto; }
-  .kalshi-document pre { max-width: 100%; max-height: 70vh; overflow: auto; padding: 14px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); font-size: 11px; line-height: 1.6; }
   .kalshi-empty { padding: 12px 0; color: var(--muted-foreground); font-size: 12px; }
   @media (max-width: 720px) {
     .kalshi-page { padding-top: 12px; gap: 16px; }

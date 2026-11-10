@@ -3,6 +3,8 @@
 import * as React from "react"
 import {
   CalendarDaysIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   DownloadIcon,
   ExternalLinkIcon,
   SearchIcon,
@@ -19,9 +21,9 @@ import {
 } from "recharts"
 import { useNavigate } from "react-router"
 
-import { HtmlImagePreview } from "@/components/common/image-preview"
 import { MainShell } from "@/components/layout/main-shell"
 import type { KalshiReport, KalshiRow } from "@/lib/api/kalshi"
+import { addCalendarDays, calendarToday, isCalendarDate } from "@/lib/calendar"
 
 type PageData = {
   dates: string[]
@@ -610,7 +612,7 @@ function Dashboard({ report }: { report: KalshiReport }) {
           </dd>
           <dt>局限</dt>
           <dd>
-            按配置的类别标签及有限搜索页发现，不保证全站完整。搜索、事件详情、K线分别记状态；部分失败时保留成功部分，具体缺口见完整文档。
+            按配置的类别标签及有限搜索页发现，不保证全站完整。搜索、事件详情、K线分别记状态；部分失败时保留成功部分，具体缺口可下载原文核查。
           </dd>
         </dl>
       </details>
@@ -620,9 +622,13 @@ function Dashboard({ report }: { report: KalshiReport }) {
 
 export function KalshiPage({ data }: { data: PageData }) {
   const navigate = useNavigate()
-  const [source, setSource] = React.useState(false)
-  const [documentOpen, setDocumentOpen] = React.useState(false)
   const report = data.report
+  const today = calendarToday()
+  const latest = data.dates[0]
+  function changeDate(date: string) {
+    if (!isCalendarDate(date) || date > today || date === data.date) return
+    void navigate(`/kalshi?date=${encodeURIComponent(date)}`)
+  }
   function download() {
     if (!report) return
     const url = URL.createObjectURL(
@@ -638,27 +644,58 @@ export function KalshiPage({ data }: { data: PageData }) {
     <MainShell containerClassName="kalshi-container">
       <div className="kalshi-page">
         <div className="kalshi-controls">
-          <label>
-            <CalendarDaysIcon size={16} /> 报告日期{" "}
-            <select
-              aria-label="选择报告日期"
-              value={data.date}
-              disabled={!data.dates.length}
-              onChange={(e) =>
-                navigate(`/kalshi?date=${encodeURIComponent(e.target.value)}`)
-              }
+          <div className="kalshi-date-controls">
+            <button
+              type="button"
+              className="kalshi-date-arrow"
+              title="前一天"
+              aria-label="前一天"
+              onClick={() => changeDate(addCalendarDays(data.date, -1))}
             >
-              {data.dates.length ? (
-                data.dates.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))
-              ) : (
-                <option value="">暂无报告</option>
-              )}
-            </select>
-          </label>
+              <ChevronLeftIcon size={16} aria-hidden="true" />
+            </button>
+            <label className="kalshi-date-field">
+              <CalendarDaysIcon size={16} aria-hidden="true" />
+              <span className="sr-only">报告日期</span>
+              <input
+                type="date"
+                value={data.date}
+                max={today}
+                list="kalshi-dates"
+                aria-label="选择报告日期"
+                onChange={(e) => changeDate(e.target.value)}
+              />
+            </label>
+            <datalist id="kalshi-dates">
+              {data.dates.map((date) => (
+                <option key={date} value={date} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              className="kalshi-date-arrow"
+              disabled={data.date >= today}
+              title="后一天"
+              aria-label="后一天"
+              onClick={() => changeDate(addCalendarDays(data.date, 1))}
+            >
+              <ChevronRightIcon size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              disabled={data.date === today}
+              onClick={() => changeDate(today)}
+            >
+              今天
+            </button>
+            <button
+              type="button"
+              disabled={!latest || latest === data.date}
+              onClick={() => latest && changeDate(latest)}
+            >
+              最新
+            </button>
+          </div>
           <button
             type="button"
             disabled={!report}
@@ -671,49 +708,13 @@ export function KalshiPage({ data }: { data: PageData }) {
         {data.error ? (
           <p className="kalshi-alert">报告暂时无法加载，请稍后重试。</p>
         ) : report ? (
-          <>
-            <Dashboard key={report.date} report={report} />
-            <details
-              className="kalshi-document"
-              onToggle={(e) => setDocumentOpen(e.currentTarget.open)}
-            >
-              <summary>完整文档与原始数据</summary>
-              {documentOpen && (
-                <>
-                  <div
-                    className="kalshi-segment"
-                    role="group"
-                    aria-label="文档查看方式"
-                  >
-                    <button
-                      type="button"
-                      aria-pressed={!source}
-                      onClick={() => setSource(false)}
-                    >
-                      排版
-                    </button>
-                    <button
-                      type="button"
-                      aria-pressed={source}
-                      onClick={() => setSource(true)}
-                    >
-                      原始 Markdown
-                    </button>
-                  </div>
-                  {source ? (
-                    <pre>{report.markdown}</pre>
-                  ) : (
-                    <HtmlImagePreview
-                      html={report.content_html}
-                      className="kalshi-markdown"
-                    />
-                  )}
-                </>
-              )}
-            </details>
-          </>
+          <Dashboard key={report.date} report={report} />
         ) : (
-          <p className="kalshi-empty">尚无已发布的 Kalshi 报告。</p>
+          <p className="kalshi-empty">
+            {data.dates.length
+              ? `${data.date} 暂无已发布的 Kalshi 报告。`
+              : "尚无已发布的 Kalshi 报告。"}
+          </p>
         )}
       </div>
     </MainShell>
