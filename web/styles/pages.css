@@ -102,73 +102,103 @@
 }
 
 @layer components {
-  .kalshi-container { max-width: 1160px; }
-  .kalshi-page { --kalshi-accent: #3b6fd8; display: grid; gap: 20px; min-width: 0; padding: 1.5rem 0 3rem; color: var(--foreground); font-size: 14px; }
-  .kalshi-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
-  .kalshi-date-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .kalshi-controls label, .kalshi-controls button { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; font-size: 12px; color: var(--muted-foreground); }
-  .kalshi-controls label { padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; }
-  .kalshi-controls button { padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--foreground); }
-  .kalshi-controls button:hover:not(:disabled) { border-color: var(--kalshi-accent); }
-  .kalshi-controls button:disabled { opacity: .45; cursor: not-allowed; }
-  .kalshi-date-controls .kalshi-date-arrow { width: 34px; justify-content: center; padding: 0; }
-  .kalshi-date-field input { width: 125px; min-width: 0; color: var(--foreground); background: transparent; border: 0; padding: 5px 2px; font-size: 12px; }
-  .kalshi-heading { display: grid; gap: 7px; padding: 0; border: 0; }
-  .kalshi-heading h1 { margin: 0; font-size: 26px; font-family: Georgia, "Songti SC", serif; font-weight: 400; line-height: 1.35; }
-  .kalshi-heading p { margin: 0; max-width: 85ch; color: var(--muted-foreground); line-height: 1.65; }
+  .kalshi-main {
+    --kalshi-accent: #28c99a;
+    --background: #111416;
+    --foreground: #f3f5f4;
+    --muted-foreground: #a0a9a8;
+    --border: #303638;
+    min-height: calc(100vh - 110px);
+    background: #0b0e0f;
+    color: var(--foreground);
+    color-scheme: dark;
+  }
+  .kalshi-container { max-width: 1280px; }
+  .kalshi-page { display: grid; gap: 20px; min-width: 0; padding: 12px 0 48px; font-size: 14px; }
+  .kalshi-controls, .kalshi-date-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .kalshi-controls { justify-content: space-between; }
+  .kalshi-controls label, .kalshi-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; font-size: 12px; }
+  .kalshi-controls label, .kalshi-controls button, .kalshi-filters select, .kalshi-select-label select { border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); }
+  .kalshi-controls label, .kalshi-controls button { padding: 0 10px; }
+  .kalshi-controls button:hover:not(:disabled), .kalshi-filters select:hover, .kalshi-select-label select:hover { border-color: var(--kalshi-accent); }
+  .kalshi-controls button:disabled { opacity: .4; cursor: not-allowed; }
+  .kalshi-date-controls .kalshi-date-arrow { width: 36px; padding: 0; }
+  .kalshi-date-field input { width: 123px; min-width: 0; border: 0; background: transparent; color: var(--foreground); font-size: 12px; }
+  .kalshi-section-nav { display: flex; gap: 28px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .kalshi-section-nav a { flex: none; padding: 3px 0 12px; color: var(--muted-foreground); font-size: 13px; text-decoration: none; }
+  .kalshi-section-nav a:first-child, .kalshi-section-nav a:hover { color: var(--kalshi-accent); }
+  .kalshi-heading { display: grid; gap: 9px; padding: 8px 0 2px; }
+  .kalshi-eyebrow { color: var(--kalshi-accent); font-size: 11px; font-weight: 700; letter-spacing: 0; }
+  .kalshi-heading h1 { margin: 0; font-size: 30px; font-weight: 700; line-height: 1.2; }
+  .kalshi-heading p { margin: 0; max-width: 100ch; color: var(--muted-foreground); line-height: 1.6; }
   .kalshi-heading b { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
   .kalshi-run-state { font-size: 12px; }
-  .kalshi-alert { margin: 0; padding: 11px 14px; border-left: 3px solid #b26a00; background: color-mix(in srgb, #b26a00 9%, var(--background)); }
-  .kalshi-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-  .kalshi-tiles > div { min-width: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--background); }
-  .kalshi-tiles > div { display: grid; align-content: space-between; gap: 5px; min-height: 110px; padding: 14px 20px; }
+  .kalshi-alert { margin: 0; padding: 11px 14px; border-left: 3px solid #e5a641; background: #272116; color: #f3d49c; }
+  .kalshi-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .kalshi-tiles > div { display: grid; align-content: space-between; gap: 4px; min-width: 0; min-height: 104px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); }
   .kalshi-tiles span, .kalshi-tiles small { color: var(--muted-foreground); font-size: 12px; }
-  .kalshi-tiles strong { font-size: 26px; font-family: Georgia, "Songti SC", serif; font-weight: 400; font-variant-numeric: tabular-nums; }
-  .kalshi-panel { display: grid; gap: 8px; min-width: 0; padding: 20px 0 26px; border-bottom: 1px solid var(--border); }
-  .kalshi-panel h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .kalshi-tiles strong { color: var(--kalshi-accent); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kalshi-panel { display: grid; gap: 14px; min-width: 0; padding: 14px 0 26px; border-bottom: 1px solid var(--border); scroll-margin-top: 18px; }
+  .kalshi-panel h2 { margin: 0; font-size: 19px; font-weight: 650; }
   .kalshi-panel > p { margin: 0; max-width: 110ch; color: var(--muted-foreground); font-size: 12px; line-height: 1.6; }
+  .kalshi-panel-heading { display: flex; align-items: baseline; gap: 12px; }
+  .kalshi-panel-heading span { color: var(--muted-foreground); font-size: 12px; }
   .kalshi-select-label { display: inline-flex; align-items: center; gap: 7px; width: fit-content; color: var(--muted-foreground); font-size: 12px; white-space: nowrap; }
-  .kalshi-select-label select, .kalshi-filters > select { min-height: 31px; max-width: 100%; padding: 3px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font-size: 12px; }
-  .kalshi-trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 272px), 1fr)); gap: 12px; margin-top: 4px; }
-  .kalshi-trend-item { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; }
-  .kalshi-trend-item h3 { margin: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-height: 2.7em; font-size: 12px; line-height: 1.35; font-weight: 600; overflow-wrap: anywhere; }
-  .kalshi-trend-item h3 a, .kalshi-title a, .kalshi-detail-grid a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
-  .kalshi-trend-item p { min-height: 3em; margin: 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.5; }
-  .kalshi-trend-item b { color: var(--foreground); font-weight: 600; white-space: nowrap; }
-  .kalshi-mini-chart { height: 116px; min-width: 0; }
-  .kalshi-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
+  .kalshi-select-label select, .kalshi-filters > select { min-height: 34px; max-width: 100%; padding: 4px 10px; font-size: 12px; }
+  .kalshi-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
   .kalshi-segment { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-  .kalshi-segment button { padding: 5px 9px; min-height: 30px; color: var(--muted-foreground); font-size: 12px; }
+  .kalshi-segment button { min-height: 34px; padding: 5px 11px; color: var(--muted-foreground); font-size: 12px; }
   .kalshi-segment button + button { border-left: 1px solid var(--border); }
-  .kalshi-segment button[aria-pressed="true"] { color: var(--background); background: var(--foreground); font-weight: 600; }
-  .kalshi-search { display: flex; align-items: center; flex: 1 1 190px; gap: 5px; min-height: 31px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted-foreground); }
+  .kalshi-segment button[aria-pressed="true"] { background: var(--kalshi-accent); color: #08130f; font-weight: 700; }
+  .kalshi-search { display: flex; align-items: center; flex: 1 1 210px; gap: 7px; min-height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--muted-foreground); }
+  .kalshi-search:focus-within { border-color: var(--kalshi-accent); }
   .kalshi-search input { width: 100%; min-width: 0; border: 0; outline: none; background: transparent; color: var(--foreground); font-size: 12px; }
-  .kalshi-tablebox { max-height: 640px; overflow: auto; border-top: 1px solid var(--border); }
-  .kalshi-table { min-width: 1120px; font-size: 12px; }
-  .kalshi-table th { z-index: 2; white-space: nowrap; }
-  .kalshi-table th, .kalshi-table td { padding: 8px; }
-  .kalshi-table td { line-height: 1.45; }
-  .kalshi-table .kalshi-num { text-align: right; white-space: nowrap; }
-  .kalshi-table .kalshi-title { min-width: 180px; max-width: 290px; overflow-wrap: anywhere; }
-  .kalshi-table .kalshi-title small { color: var(--muted-foreground); }
-  .kalshi-table .kalshi-note { min-width: 220px; color: var(--muted-foreground); }
-  .kalshi-pill { display: inline-block; padding: 1px 5px; border: 1px solid currentColor; border-radius: 5px; white-space: nowrap; }
-  .kalshi-pill.new, .kalshi-up { color: #287657; }
-  .kalshi-pill.move { color: #b26a00; }
-  .kalshi-pill.watch { color: var(--muted-foreground); }
-  .kalshi-down { color: #b64339; }
-  .kalshi-detail-toggle { color: #3560b1; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
-  .kalshi-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; margin: 0; padding: 8px; }
+  .kalshi-market-list { max-height: min(600px, 65vh); min-height: 0; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--background); scrollbar-color: #53615c var(--background); }
+  .kalshi-market-list:focus-visible { outline: 2px solid var(--kalshi-accent); outline-offset: 2px; }
+  .kalshi-market { display: grid; grid-template-columns: 95px minmax(0, 1fr) minmax(380px, .95fr) 48px; align-items: center; gap: 14px; min-width: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .kalshi-market:last-child { border-bottom: 0; }
+  .kalshi-market:hover { background: #1b2020; }
+  .kalshi-market-meta { display: grid; align-content: center; justify-items: start; gap: 5px; min-width: 0; }
+  .kalshi-market-meta { color: var(--muted-foreground); font-size: 11px; }
+  .kalshi-market-meta > span:not(.kalshi-pill) { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+  .kalshi-market-summary { display: grid; gap: 3px; min-width: 0; }
+  .kalshi-market-related { overflow: hidden; color: var(--muted-foreground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .kalshi-pill { flex: none; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .kalshi-pill.new { background: #133b30; color: #64d6ae; }
+  .kalshi-pill.move { background: #443021; color: #f0b272; }
+  .kalshi-pill.watch { background: #263239; color: #a6c3cf; }
+  .kalshi-market h3 { margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+  .kalshi-market h3 a, .kalshi-trend-item h3 a { color: var(--foreground); text-decoration: none; }
+  .kalshi-market h3 a:hover, .kalshi-trend-item h3 a:hover { color: var(--kalshi-accent); }
+  .kalshi-market h3 svg { display: inline; vertical-align: middle; color: var(--muted-foreground); }
+  .kalshi-market-ticker { overflow: hidden; color: var(--muted-foreground); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .kalshi-market-metrics { display: grid; grid-template-columns: minmax(0, 1.3fr) repeat(3, minmax(0, 1fr)); gap: 8px; min-width: 0; margin: 0; }
+  .kalshi-market-metrics > div { display: grid; align-content: center; gap: 4px; min-width: 0; }
+  .kalshi-market-metrics dt { color: var(--muted-foreground); font-size: 11px; white-space: nowrap; }
+  .kalshi-market-metrics dd { min-width: 0; margin: 0; color: var(--foreground); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .kalshi-market-metrics .kalshi-market-price { color: var(--kalshi-accent); font-size: 17px; }
+  .kalshi-market-metrics .kalshi-up { color: #5bd6a2; }
+  .kalshi-market-metrics .kalshi-down { color: #f18083; }
+  .kalshi-market-note { overflow: hidden; margin: 0; color: #c8d0ce; font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+  .kalshi-detail-toggle { display: inline-flex; align-items: center; justify-content: flex-end; gap: 3px; color: var(--kalshi-accent); font-size: 11px; white-space: nowrap; }
+  .kalshi-detail-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .kalshi-detail-grid { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; margin: 0; padding: 12px 0 0; border-top: 1px solid var(--border); }
   .kalshi-detail-grid div { min-width: 0; }
   .kalshi-detail-grid dt { color: var(--muted-foreground); font-size: 11px; }
-  .kalshi-detail-grid dd { margin: 3px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .kalshi-detail-grid dd a { display: inline; }
+  .kalshi-detail-grid dd { margin: 3px 0 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .kalshi-detail-grid a { color: var(--kalshi-accent); }
   .kalshi-detail-grid dd svg { display: inline; vertical-align: middle; }
+  .kalshi-trend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 286px), 1fr)); gap: 12px; }
+  .kalshi-trend-item { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--background); }
+  .kalshi-trend-item h3 { min-height: 2.7em; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+  .kalshi-trend-item p { min-height: 3em; margin: 0; color: var(--muted-foreground); font-size: 11px; line-height: 1.5; }
+  .kalshi-trend-item b { color: var(--foreground); font-weight: 600; white-space: nowrap; }
+  .kalshi-mini-chart { height: 128px; min-width: 0; }
   .kalshi-category-chart { display: grid; gap: 8px; margin-top: 7px; }
   .kalshi-category-row { display: grid; grid-template-columns: minmax(100px, 180px) minmax(40px, 1fr) 40px; gap: 12px; align-items: center; min-height: 22px; font-size: 12px; }
   .kalshi-category-row span { overflow-wrap: anywhere; text-align: right; }
-  .kalshi-category-row div { min-width: 0; }
-  .kalshi-category-row i { display: block; height: 22px; border-radius: 3px; background: var(--kalshi-accent); }
+  .kalshi-category-row div { min-width: 0; background: var(--border); }
+  .kalshi-category-row i { display: block; height: 18px; border-radius: 2px; background: var(--kalshi-accent); }
   .kalshi-category-row b { font-weight: 400; font-variant-numeric: tabular-nums; }
   .kalshi-method { color: var(--muted-foreground); font-size: 12px; }
   .kalshi-method summary { width: fit-content; cursor: pointer; color: var(--foreground); }
@@ -176,18 +206,34 @@
   .kalshi-method dt { color: var(--foreground); }
   .kalshi-method dd { margin: 0; }
   .kalshi-empty { padding: 12px 0; color: var(--muted-foreground); font-size: 12px; }
+  @media (max-width: 980px) {
+    .kalshi-market { grid-template-columns: 85px minmax(0, 1fr) minmax(190px, .7fr) 44px; gap: 10px; }
+    .kalshi-market-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  }
   @media (max-width: 720px) {
-    .kalshi-page { padding-top: 12px; gap: 16px; }
-    .kalshi-tiles { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
-    .kalshi-panel { padding: 16px 0 20px; }
-    .kalshi-table .kalshi-hide-narrow { display: none; }
-    .kalshi-table { min-width: 780px; }
-    .kalshi-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .kalshi-page { gap: 16px; }
+    .kalshi-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .kalshi-tiles > div { min-height: 84px; padding: 10px; }
+    .kalshi-tiles small { display: none; }
+    .kalshi-market { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 12px; }
+    .kalshi-market-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .kalshi-market-summary { grid-column: 1 / -1; grid-row: 2; }
+    .kalshi-market-metrics { grid-column: 1; grid-row: 3; }
+    .kalshi-detail-toggle { grid-column: 2; grid-row: 3; }
+    .kalshi-panel { padding: 12px 0 20px; }
+    .kalshi-heading h1 { font-size: 25px; }
     .kalshi-category-row { grid-template-columns: minmax(80px, 125px) minmax(40px, 1fr) 32px; gap: 8px; }
   }
   @media (max-width: 480px) {
-    .kalshi-controls { justify-content: space-between; }
-    .kalshi-trend-grid { grid-template-columns: minmax(0, 1fr); }
+    .kalshi-controls { align-items: stretch; }
+    .kalshi-date-controls { gap: 5px; }
+    .kalshi-controls label, .kalshi-controls button { padding: 0 7px; }
+    .kalshi-date-field input { width: 110px; }
+    .kalshi-tiles strong { font-size: 22px; }
+    .kalshi-tiles span { font-size: 11px; }
+    .kalshi-filters > select, .kalshi-select-label { flex: 1 1 140px; }
+    .kalshi-select-label select { flex: 1; }
+    .kalshi-search { flex-basis: 100%; }
     .kalshi-detail-grid { grid-template-columns: minmax(0, 1fr); }
   }
   .daily-review-page {
