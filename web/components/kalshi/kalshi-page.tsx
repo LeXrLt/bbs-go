@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   CalendarDaysIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   DownloadIcon,
@@ -138,6 +139,7 @@ function TrendCard({ rows }: { rows: KalshiRow[] }) {
         : null,
     middle: middle(p),
     close: num(p.close),
+    vol: num(p.vol),
   }))
   const spread =
     num(last.bid) != null && num(last.ask) != null
@@ -195,16 +197,23 @@ function TrendCard({ rows }: { rows: KalshiRow[] }) {
               labelFormatter={(s) =>
                 `${new Date(Number(s)).toISOString().slice(0, 16).replace("T", " ")} UTC`
               }
-              formatter={(v, name) => [
-                Array.isArray(v) ? `${pct(v[0])}–${pct(v[1])}` : pct(v),
-                name,
-              ]}
+              formatter={(v, name, item) => {
+                const price = Array.isArray(v)
+                  ? `${pct(v[0])}–${pct(v[1])}`
+                  : pct(v)
+                if (name !== "实际成交价") return [price, name]
+                const volume = num(item.payload?.vol)
+                return [
+                  `${price} · 小时成交量 ${volume == null ? "无数据" : `${count(Math.round(volume))} 张`}`,
+                  name,
+                ]
+              }}
             />
             <Area
               dataKey="band"
               name="买卖报价区间"
               type="stepAfter"
-              fill="#3b6fd8"
+              fill="var(--kalshi-accent)"
               fillOpacity={0.13}
               stroke="none"
               connectNulls={false}
@@ -214,7 +223,7 @@ function TrendCard({ rows }: { rows: KalshiRow[] }) {
               dataKey="middle"
               name="窄价差中间价"
               type="stepAfter"
-              stroke="#3b6fd8"
+              stroke="var(--kalshi-accent)"
               strokeWidth={1.5}
               dot={false}
               connectNulls={false}
@@ -301,10 +310,14 @@ function Dashboard({ report }: { report: KalshiReport }) {
   return (
     <>
       <header className="kalshi-heading">
-        <h1>Kalshi新合约看板</h1>
+        <span className="kalshi-eyebrow">KALSHI / 每日跟踪</span>
+        <h1>市场线索</h1>
         <p className="kalshi-run-state">
-          扫描截至 {report.as_of} · {report.manifest.collection_status} ·
-          今日数据为分类标签搜索样本，非全站穷尽
+          扫描截至 {report.as_of} ·{" "}
+          {report.manifest.collection_status === "complete"
+            ? "采集完成"
+            : "部分采集"}{" "}
+          · 分类标签搜索样本，非全站穷尽
         </p>
         <p>
           截至扫描（<b>{end}</b>）累计记录 <b>{count(rows.length)}</b>{" "}
@@ -335,45 +348,11 @@ function Dashboard({ report }: { report: KalshiReport }) {
           <small>成交活跃、与投资相关的存量合约</small>
         </div>
       </section>
-      <section className="kalshi-panel" id="top10-trend">
-        <h2>新上线Top10走势</h2>
-        <p>
-          每次扫描按事件成交量选出新上线合约前10名（成交量为0的不入选），上线后连续跟踪7天。线为价差不超过10个百分点的买卖中间价（每小时），浅色带为买价到卖价区间，圆点为实际成交价。买卖价差越宽，价格越不可靠。
-        </p>
-        <label className="kalshi-select-label">
-          批次{" "}
-          <select
-            aria-label="入选日期"
-            value={selectedCohort || ""}
-            onChange={(e) => setCohort(e.target.value)}
-          >
-            {cohorts.map((c) => (
-              <option key={c} value={c}>
-                {c}（
-                {
-                  new Set(
-                    trends
-                      .filter((r) => r.cohort === c)
-                      .map((r) => value(r.market_ticker))
-                  ).size
-                }
-                个）
-              </option>
-            ))}
-          </select>
-        </label>
-        {markets.length ? (
-          <div className="kalshi-trend-grid">
-            {markets.map((series) => (
-              <TrendCard key={value(series[0]?.market_ticker)} rows={series} />
-            ))}
-          </div>
-        ) : (
-          <p className="kalshi-empty">这一批次暂无走势数据。</p>
-        )}
-      </section>
       <section className="kalshi-panel" id="signals">
-        <h2>线索明细</h2>
+        <div className="kalshi-panel-heading">
+          <h2>浏览市场线索</h2>
+          <span>{visible.length} 条结果</span>
+        </div>
         <p>
           点标题打开Kalshi合约页。成交价为所选代表盘口的最近成交价，变动与同一盘口的接口前值比较；前值周期未独立核实。成交很薄的合约价格仅供参考。
         </p>
@@ -426,104 +405,131 @@ function Dashboard({ report }: { report: KalshiReport }) {
             />
           </label>
         </div>
-        <div className="kalshi-tablebox">
-          <table className="kalshi-table">
-            <thead>
-              <tr>
-                <th>日期</th>
-                <th>信号</th>
-                <th className="kalshi-hide-narrow">类别</th>
-                <th>合约</th>
-                <th>代表盘口结果</th>
-                <th>最近成交价</th>
-                <th>变动</th>
-                <th className="kalshi-hide-narrow">成交量</th>
-                <th className="kalshi-hide-narrow">相关标的</th>
-                <th>投资含义</th>
-                <th>明细</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((r, i) => {
-                const key = `${value(r.key)}-${i}`,
-                  href = safeLink(r.link),
-                  delta = num(r.change_pp)
-                return (
-                  <React.Fragment key={key}>
-                    <tr>
-                      <td className="kalshi-num">{value(r.date)}</td>
-                      <td>
-                        <span
-                          className={`kalshi-pill ${r.signal === "新上线" ? "new" : r.signal === "价格异动" ? "move" : "watch"}`}
-                        >
-                          {value(r.signal)}
-                        </span>
-                      </td>
-                      <td className="kalshi-hide-narrow">
-                        {value(r.category)}
-                      </td>
-                      <td className="kalshi-title">
-                        {href ? (
-                          <a
-                            href={href}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {value(r.title_zh)}
-                          </a>
-                        ) : (
-                          value(r.title_zh)
-                        )}
-                        <small>
-                          {value(r.event_ticker || r.series_ticker)}
-                          {r.opened && r.opened !== "—"
-                            ? ` · 开盘 ${r.opened}`
-                            : ""}
-                        </small>
-                      </td>
-                      <td>{value(r.outcome)}</td>
-                      <td className="kalshi-num">{pct(r.prob)}</td>
-                      <td
-                        className={`kalshi-num ${delta != null && delta > 0 ? "kalshi-up" : delta != null && delta < 0 ? "kalshi-down" : ""}`}
-                      >
-                        {delta == null
-                          ? "—"
-                          : `${delta > 0 ? "+" : ""}${delta}`}
-                      </td>
-                      <td className="kalshi-num kalshi-hide-narrow">
-                        {count(r.volume)}
-                      </td>
-                      <td className="kalshi-hide-narrow">{value(r.related)}</td>
-                      <td className="kalshi-note">{value(r.note)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="kalshi-detail-toggle"
-                          aria-label={`${value(r.title_zh)}全部字段`}
-                          aria-expanded={expanded === key}
-                          onClick={() =>
-                            setExpanded(expanded === key ? null : key)
-                          }
-                        >
-                          {expanded === key ? "收起" : "查看"}
-                        </button>
-                      </td>
-                    </tr>
-                    {expanded === key && (
-                      <tr>
-                        <td colSpan={11}>
-                          <Detail row={r} />
-                        </td>
-                      </tr>
+        <div
+          className="kalshi-market-list"
+          role="list"
+          aria-label="市场线索列表"
+          tabIndex={0}
+        >
+          {visible.map((r, i) => {
+            const key = `${value(r.key)}-${i}`
+            const href = safeLink(r.link)
+            const delta = num(r.change_pp)
+            return (
+              <article className="kalshi-market" role="listitem" key={key}>
+                <div className="kalshi-market-meta">
+                  <span
+                    className={`kalshi-pill ${r.signal === "新上线" ? "new" : r.signal === "价格异动" ? "move" : "watch"}`}
+                  >
+                    {value(r.signal)}
+                  </span>
+                  <span>{value(r.category)}</span>
+                  <time dateTime={value(r.date)}>{value(r.date)}</time>
+                </div>
+                <div className="kalshi-market-summary">
+                  <h3>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {value(r.title_zh)}{" "}
+                        <ExternalLinkIcon size={14} aria-hidden="true" />
+                      </a>
+                    ) : (
+                      value(r.title_zh)
                     )}
-                  </React.Fragment>
-                )
-              })}
-            </tbody>
-          </table>
+                  </h3>
+                  <span className="kalshi-market-ticker">
+                    {value(r.event_ticker || r.series_ticker)}
+                  </span>
+                  <p className="kalshi-market-note">{value(r.note)}</p>
+                  <span className="kalshi-market-related">
+                    相关标的：{value(r.related)}
+                  </span>
+                </div>
+                <dl className="kalshi-market-metrics">
+                  <div>
+                    <dt>代表盘口结果</dt>
+                    <dd>{value(r.outcome)}</dd>
+                  </div>
+                  <div>
+                    <dt>最近成交价</dt>
+                    <dd className="kalshi-market-price">{pct(r.prob)}</dd>
+                  </div>
+                  <div>
+                    <dt>变动</dt>
+                    <dd
+                      className={
+                        delta != null && delta > 0
+                          ? "kalshi-up"
+                          : delta != null && delta < 0
+                            ? "kalshi-down"
+                            : ""
+                      }
+                    >
+                      {delta == null
+                        ? "—"
+                        : `${delta > 0 ? "+" : ""}${delta} pp`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>事件成交量</dt>
+                    <dd>
+                      {count(r.volume)}{num(r.volume) == null ? "" : " 份"}
+                    </dd>
+                  </div>
+                </dl>
+                <button
+                  type="button"
+                  className="kalshi-detail-toggle"
+                  aria-label={`${value(r.title_zh)}全部字段`}
+                  aria-expanded={expanded === key}
+                  onClick={() => setExpanded(expanded === key ? null : key)}
+                >
+                  明细 <ChevronDownIcon size={14} aria-hidden="true" />
+                </button>
+                {expanded === key && <Detail row={r} />}
+              </article>
+            )
+          })}
         </div>
         {!visible.length && (
           <p className="kalshi-empty">没有符合筛选条件的线索。</p>
+        )}
+      </section>
+      <section className="kalshi-panel" id="top10-trend">
+        <h2>新上线 Top10 走势</h2>
+        <p>
+          每次扫描按事件成交量选出新上线合约前10名（成交量为0的不入选），上线后连续跟踪7天。线为价差不超过10个百分点的买卖中间价（每小时），浅色带为买价到卖价区间，圆点为实际成交价。买卖价差越宽，价格越不可靠。
+        </p>
+        <label className="kalshi-select-label">
+          批次{" "}
+          <select
+            aria-label="入选日期"
+            value={selectedCohort || ""}
+            onChange={(e) => setCohort(e.target.value)}
+          >
+            {cohorts.map((c) => (
+              <option key={c} value={c}>
+                {c}（
+                {
+                  new Set(
+                    trends
+                      .filter((r) => r.cohort === c)
+                      .map((r) => value(r.market_ticker))
+                  ).size
+                }
+                个）
+              </option>
+            ))}
+          </select>
+        </label>
+        {markets.length ? (
+          <div className="kalshi-trend-grid">
+            {markets.map((series) => (
+              <TrendCard key={value(series[0]?.market_ticker)} rows={series} />
+            ))}
+          </div>
+        ) : (
+          <p className="kalshi-empty">这一批次暂无走势数据。</p>
         )}
       </section>
       <section className="kalshi-panel" id="by-category">
@@ -641,7 +647,7 @@ export function KalshiPage({ data }: { data: PageData }) {
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
   return (
-    <MainShell containerClassName="kalshi-container">
+    <MainShell className="kalshi-main" containerClassName="kalshi-container">
       <div className="kalshi-page">
         <div className="kalshi-controls">
           <div className="kalshi-date-controls">
@@ -705,6 +711,11 @@ export function KalshiPage({ data }: { data: PageData }) {
             <DownloadIcon size={16} /> 原文
           </button>
         </div>
+        <nav className="kalshi-section-nav" aria-label="看板内容">
+          <a href="#signals">市场线索</a>
+          <a href="#top10-trend">走势跟踪</a>
+          <a href="#by-category">类别分布</a>
+        </nav>
         {data.error ? (
           <p className="kalshi-alert">报告暂时无法加载，请稍后重试。</p>
         ) : report ? (

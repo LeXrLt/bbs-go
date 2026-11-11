@@ -19,6 +19,12 @@
 `collection_status=partial` 且 `publication_ready=true` 可以发布，
 页面保留缺口提示；`publication_ready=false` 不可发布。
 
+生成端仍须在本地保存 `.md` 原件及历史归档，上传成功后不得删除或改写源文件。
+现有 `daily_run.py` 的 `KALSHI_ARCHIVE_DIR`（默认在部署包上一级的
+`Kalshi合约` 目录）会保存 `存档/` 中的批次文件和 `最新发布文档.md`；
+推送任务应读取已完成归档的文件。BBS 的 PostgreSQL 原文与页面下载是额外副本，
+不是生成端本地归档的替代品。
+
 ## 2. 与每日复盘共用 token
 
 沿用每日复盘的账号和用户 token，无需新的登录流程或单独的 API Key。管理员在
