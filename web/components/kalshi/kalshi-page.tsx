@@ -183,17 +183,24 @@ function TrendCard({ rows }: { rows: KalshiRow[] }) {
                 new Date(s).toISOString().slice(5, 10).replace("-", "/")
               }
               minTickGap={35}
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
               tickLine={false}
             />
             <YAxis
               domain={[0, 1]}
               ticks={[0, 0.5, 1]}
               tickFormatter={(n: number) => `${Math.round(n * 100)}%`}
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
               tickLine={false}
             />
             <Tooltip
+              contentStyle={{
+                background: "var(--background)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                color: "var(--foreground)",
+              }}
+              labelStyle={{ color: "var(--muted-foreground)" }}
               labelFormatter={(s) =>
                 `${new Date(Number(s)).toISOString().slice(0, 16).replace("T", " ")} UTC`
               }
