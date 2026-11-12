@@ -714,15 +714,15 @@ export function KalshiPage({ data }: { data: PageData }) {
             >
               最新
             </button>
-          </div>
-          <div className="kalshi-slot-controls" role="group" aria-label="报告档位">
-            {(["morning", "evening"] as const).map((slot) => (
-              <button key={slot} type="button" aria-pressed={data.slot === slot}
-                title={data.snapshots.some((snapshot) => snapshot.slot === slot) ? undefined : "尚未发布"}
-                onClick={() => changeSlot(slot)}>
-                {slot === "morning" ? "早间" : "晚间"}
-              </button>
-            ))}
+            <div className="kalshi-slot-controls" role="group" aria-label="报告档位">
+              {(["morning", "evening"] as const).map((slot) => (
+                <button key={slot} type="button" aria-pressed={data.slot === slot}
+                  title={data.snapshots.some((snapshot) => snapshot.slot === slot) ? undefined : "尚未发布"}
+                  onClick={() => changeSlot(slot)}>
+                  {slot === "morning" ? "早间" : "晚间"}
+                </button>
+              ))}
+            </div>
           </div>
           <button
             type="button"
