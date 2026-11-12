@@ -10,7 +10,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -40,12 +39,15 @@ func KalshiStatus(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, errs.NoPermission())
 		return
 	}
-	date, err := time.Parse(time.DateOnly, ctx.Query("date"))
-	if err != nil || date.Format(time.DateOnly) != ctx.Query("date") {
-		writeDailyReviewError(ctx, http.StatusBadRequest, "date must use YYYY-MM-DD")
+	date, ok := kalshiDate(ctx)
+	if !ok {
 		return
 	}
-	status, err := services.KalshiStatus(date)
+	slot := ctx.Query("slot")
+	if !kalshiSlot(ctx, slot) {
+		return
+	}
+	status, err := services.KalshiStatus(date, slot)
 	if err != nil {
 		slog.Error("load Kalshi publish status", slog.Any("err", err))
 		writeDailyReviewError(ctx, http.StatusInternalServerError, "failed to load Kalshi publish status")
@@ -54,20 +56,54 @@ func KalshiStatus(ctx *gin.Context) {
 	ginx.WriteJSON(ctx, status)
 }
 
-func KalshiReport(ctx *gin.Context) {
-	date, err := time.Parse(time.DateOnly, strings.TrimSpace(ctx.Query("date")))
+func kalshiDate(ctx *gin.Context) (time.Time, bool) {
+	date, err := time.Parse(time.DateOnly, ctx.Query("date"))
 	if err != nil || date.Format(time.DateOnly) != ctx.Query("date") {
 		writeDailyReviewError(ctx, http.StatusBadRequest, "date must use YYYY-MM-DD")
+		return time.Time{}, false
+	}
+	return date, true
+}
+
+func kalshiSlot(ctx *gin.Context, slot string) bool {
+	if !services.ValidKalshiSlot(slot) {
+		writeDailyReviewError(ctx, http.StatusBadRequest, "slot must be morning or evening")
+		return false
+	}
+	return true
+}
+
+func KalshiSnapshots(ctx *gin.Context) {
+	date, ok := kalshiDate(ctx)
+	if !ok {
 		return
 	}
-	report, err := services.KalshiGet(date)
+	snapshots, err := services.KalshiSnapshots(date)
+	if err != nil {
+		slog.Error("load Kalshi snapshots", slog.Any("err", err))
+		writeDailyReviewError(ctx, http.StatusInternalServerError, "failed to load Kalshi snapshots")
+		return
+	}
+	ginx.WriteJSON(ctx, gin.H{"date": date.Format(time.DateOnly), "snapshots": snapshots})
+}
+
+func KalshiReport(ctx *gin.Context) {
+	date, ok := kalshiDate(ctx)
+	if !ok {
+		return
+	}
+	slot := ctx.Query("slot")
+	if !kalshiSlot(ctx, slot) {
+		return
+	}
+	report, err := services.KalshiGet(date, slot)
 	if err != nil {
 		slog.Error("load Kalshi report", slog.Any("err", err))
 		writeDailyReviewError(ctx, http.StatusInternalServerError, "failed to load Kalshi report")
 		return
 	}
 	if report == nil {
-		writeDailyReviewError(ctx, http.StatusNotFound, "Kalshi report not found")
+		ginx.WriteJSON(ctx, gin.H{"date": date.Format(time.DateOnly), "slot": slot, "published": false})
 		return
 	}
 	doc, err := services.ParseKalshiDocument(report.Markdown)
@@ -77,7 +113,7 @@ func KalshiReport(ctx *gin.Context) {
 		return
 	}
 	ginx.WriteJSON(ctx, gin.H{
-		"date": date.Format(time.DateOnly), "as_of": doc.AsOf.Format(time.RFC3339),
+		"date": date.Format(time.DateOnly), "slot": slot, "published": true, "content_hash": report.ContentHash, "as_of": doc.AsOf.Format(time.RFC3339),
 		"updated_at": time.UnixMilli(report.UpdateTime).UTC().Format(time.RFC3339),
 		"manifest":   doc.Manifest, "signals": doc.Signals, "trends": doc.Trends,
 		"narrative_html": render.BuildSafeMarkdownContent(doc.Narrative),
@@ -102,7 +138,7 @@ func KalshiIngest(ctx *gin.Context) {
 		writeDailyReviewError(ctx, http.StatusBadRequest, "invalid Kalshi payload")
 		return
 	}
-	result, date, err := services.KalshiSave(upload.Markdown)
+	result, date, slot, hash, err := services.KalshiSave(upload.Markdown)
 	if errors.Is(err, services.ErrKalshiStale) {
 		writeDailyReviewError(ctx, http.StatusConflict, err.Error())
 		return
@@ -116,5 +152,5 @@ func KalshiIngest(ctx *gin.Context) {
 		writeDailyReviewError(ctx, http.StatusInternalServerError, "failed to save Kalshi report")
 		return
 	}
-	ginx.WriteJSON(ctx, gin.H{"result": result, "date": date})
+	ginx.WriteJSON(ctx, gin.H{"result": result, "date": date, "slot": slot, "content_hash": hash})
 }

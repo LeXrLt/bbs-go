@@ -115,7 +115,7 @@
   }
   .kalshi-container { max-width: 1280px; }
   .kalshi-page { display: grid; gap: 20px; min-width: 0; padding: 12px 0 48px; font-size: 14px; }
-  .kalshi-controls, .kalshi-date-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .kalshi-controls, .kalshi-date-controls, .kalshi-slot-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
   .kalshi-controls { justify-content: space-between; }
   .kalshi-controls label, .kalshi-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; font-size: 12px; }
   .kalshi-controls label, .kalshi-controls button, .kalshi-filters select, .kalshi-select-label select { border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); }
@@ -123,6 +123,10 @@
   .kalshi-controls button:hover:not(:disabled), .kalshi-filters select:hover, .kalshi-select-label select:hover { border-color: var(--kalshi-accent); }
   .kalshi-controls button:disabled { opacity: .4; cursor: not-allowed; }
   .kalshi-date-controls .kalshi-date-arrow { width: 36px; padding: 0; }
+  .kalshi-slot-controls { gap: 0; }
+  .kalshi-slot-controls button:first-child { border-radius: 6px 0 0 6px; }
+  .kalshi-slot-controls button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+  .kalshi-slot-controls button[aria-pressed="true"] { position: relative; border-color: var(--kalshi-accent); background: var(--kalshi-accent); color: #fff; }
   .kalshi-date-field input { width: 123px; min-width: 0; border: 0; background: transparent; color: var(--foreground); font-size: 12px; }
   .kalshi-section-nav { display: flex; gap: 28px; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .kalshi-section-nav a { flex: none; padding: 3px 0 12px; color: var(--muted-foreground); font-size: 13px; text-decoration: none; }

@@ -1,7 +1,7 @@
 import { useLoaderData } from "react-router"
 
 import { KalshiPage } from "@/components/kalshi/kalshi-page"
-import { getKalshiDates, getKalshiReport } from "@/lib/api/kalshi"
+import { getKalshiDates, getKalshiReport, getKalshiSnapshots, type KalshiSlot } from "@/lib/api/kalshi"
 import { calendarToday, isCalendarDate } from "@/lib/calendar"
 import { localizedTitle, pageMeta, rootDataFromMatches } from "@/lib/seo"
 import { useDocumentTitle } from "@/lib/use-document-title"
@@ -10,26 +10,42 @@ async function load(request: Request) {
   const options = { request, signal: request.signal }
   try {
     const { dates } = await getKalshiDates(options)
-    const requested = new URL(request.url).searchParams.get("date")
+    const params = new URL(request.url).searchParams
+    const requested = params.get("date")
     const today = calendarToday()
     const date =
       isCalendarDate(requested) && requested <= today
         ? requested
         : dates[0] || today
+    const rawSlot = params.get("slot")
+    const requestedSlot: KalshiSlot | null = rawSlot === "morning" || rawSlot === "evening" ? rawSlot : null
     if (!dates.includes(date))
-      return { dates, date, report: null, error: false }
+      return { dates, date, slot: requestedSlot, snapshots: [], report: null, error: false }
     try {
+      const { snapshots } = await getKalshiSnapshots(date, options)
+      const slot: KalshiSlot | null = requestedSlot
+        ? requestedSlot
+        : snapshots.some((snapshot) => snapshot.slot === "evening")
+          ? "evening"
+          : snapshots.some((snapshot) => snapshot.slot === "morning") ? "morning" : null
+      const response = slot ? await getKalshiReport(date, slot, options) : null
+      if (response && (response.date !== date || response.slot !== slot ||
+        (response.published && response.manifest.metadata.run_slot !== slot))) {
+        throw new Error("Kalshi report slot mismatch")
+      }
       return {
         dates,
         date,
-        report: await getKalshiReport(date, options),
+        slot,
+        snapshots,
+        report: response?.published ? response : null,
         error: false,
       }
     } catch {
-      return { dates, date, report: null, error: true }
+      return { dates, date, slot: requestedSlot, snapshots: [], report: null, error: true }
     }
   } catch {
-    return { dates: [] as string[], date: "", report: null, error: true }
+    return { dates: [] as string[], date: "", slot: null, snapshots: [], report: null, error: true }
   }
 }
 

@@ -35,7 +35,7 @@ Markdown** 推送至 BBS-Go 的独立 `/kalshi` 看板，同时继续在抓取�
 3. manifest 的 `schema_version` 为 `kalshi-dashboard-handoff/2`；`date` 为
    `YYYY-MM-DD`，`as_of` 为对应北京时间日期的 RFC 3339 时间；
    `publication_ready` 为 `true` 才能提交，`collection_status` 只能为
-   `complete` 或 `partial`，`metadata` 必须是有效 JSON。
+   `complete` 或 `partial`，`metadata.run_slot` 必须是 `morning` 或 `evening`。
 4. `manifest.files` 对后三个数据/页面代码块逐个记录**代码块内部文本**的
    UTF-8 字节数和 SHA-256；`counts.signals_total`、`counts.trend_rows` 与
    两份 JSON 的 `rows` 数量一致。文件整体必须是非空 UTF-8，且不超过
@@ -73,30 +73,31 @@ python3 scripts/push_kalshi_report.py \
 自行实现客户端时也须遵守：
 
 1. 读取文件**原始字节**，校验大小和 UTF-8，从唯一的 `manifest.json` 代码块
-   获取 `date`。不能用推送当天的系统日期替代它。
+   获取 `date` 和 `metadata.run_slot`，不能用推送当天的系统日期或文件名推断档位。
 2. 以 `X-User-Token` 请求
-   `GET /api/kalshi/status?date=YYYY-MM-DD`。响应为 BBS 的 JSON 包装对象，
+   `GET /api/kalshi/status?date=YYYY-MM-DD&slot=morning`（晚间用 `evening`）。响应为 BBS 的 JSON 包装对象，
    必须同时检查 HTTP 状态与 `success === true`。`data.published=true` 时，
    对比 `data.content_hash` 与**整个 MD 文件原始字节**的 SHA-256；相同则
    直接返回 `unchanged`。状态查询失败不可当作“尚未发布”。
 3. 哈希不同时发送 `POST /api/kalshi/ingest`，请求头为
    `Content-Type: application/json; charset=utf-8` 和 `X-User-Token`，JSON
    请求体只有 `{"markdown":"<完整 Markdown 文本>"}`。核对响应的
-   `success === true`、`data.date` 与 manifest 日期相同，且 `data.result`
-   是 `created`、`updated`、`unchanged` 之一。
+   `success === true`、`data.date`、`data.slot` 与 manifest 一致，
+   `data.content_hash` 与整份原文哈希一致，`data.result` 是 `created`、
+   `updated`、`unchanged` 之一；随后再次查询同档状态核对哈希。
 4. 网络故障或 HTTP 5xx 可以有限重试同一文件；HTTP 400（文档不合法）、
    HTTP 409（比已发布快照更旧）、业务失败或权限失败应非零退出并告警。
-   BBS-Go 会保存同日旧版，较新的 `as_of` 可以更新同日报告；同一内容重复
+   BBS-Go 会保存同档旧版，严格较新的 `as_of` 才可以更新同档报告；同一内容重复
    推送是幂等的。不要在日志中打印 token、完整请求或完整文档。
 
 同步账号需要权限才能查询状态和推送；普通页面 `GET /api/kalshi/dates` 和
-`GET /api/kalshi/report?date=YYYY-MM-DD` 依照站点的登录可见策略读取。
+`GET /api/kalshi/snapshots?date=YYYY-MM-DD`、`GET /api/kalshi/report?date=YYYY-MM-DD&slot=morning` 依照站点的登录可见策略读取。
 
 ## 5. 上线核验
 
-- 推送结果输出应为 `created: <date>`、`updated: <date>` 或
-  `unchanged: <date>`；非零退出视为失败，不可只看 HTTP 200。
-- 登录 BBS-Go，访问 `/kalshi?date=<manifest.date>`，确认扫描时间、线索数量、
+- 推送结果输出应为 `created: <date> <slot>`、`updated: <date> <slot>` 或
+  `unchanged: <date> <slot>`；非零退出视为失败，不可只看 HTTP 200。
+- 登录 BBS-Go，访问 `/kalshi?date=<manifest.date>&slot=<manifest.metadata.run_slot>`，确认扫描时间、线索数量、
   代表盘口指标、走势及原文下载。`partial` 时应看到缺口提醒，并与 MD 摘要的
   具体原因一致；不要把历史样例或缺失值伪装为真实行情。
 - 确认抓取服务器仍保留原始 MD 与历史归档；BBS 的数据库和下载副本不能

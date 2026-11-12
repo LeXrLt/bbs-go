@@ -23,12 +23,14 @@ import {
 import { useNavigate } from "react-router"
 
 import { MainShell } from "@/components/layout/main-shell"
-import type { KalshiReport, KalshiRow } from "@/lib/api/kalshi"
+import type { KalshiReport, KalshiRow, KalshiSlot, KalshiSnapshot } from "@/lib/api/kalshi"
 import { addCalendarDays, calendarToday, isCalendarDate } from "@/lib/calendar"
 
 type PageData = {
   dates: string[]
   date: string
+  slot: KalshiSlot | null
+  snapshots: KalshiSnapshot[]
   report: KalshiReport | null
   error: boolean
 }
@@ -642,6 +644,10 @@ export function KalshiPage({ data }: { data: PageData }) {
     if (!isCalendarDate(date) || date > today || date === data.date) return
     void navigate(`/kalshi?date=${encodeURIComponent(date)}`)
   }
+  function changeSlot(slot: KalshiSlot) {
+    if (slot === data.slot) return
+    void navigate(`/kalshi?date=${encodeURIComponent(data.date)}&slot=${slot}`)
+  }
   function download() {
     if (!report) return
     const url = URL.createObjectURL(
@@ -649,7 +655,7 @@ export function KalshiPage({ data }: { data: PageData }) {
     )
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = `kalshi-${report.date}.md`
+    anchor.download = `kalshi-${report.date}-${report.slot}.md`
     anchor.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
@@ -703,11 +709,20 @@ export function KalshiPage({ data }: { data: PageData }) {
             </button>
             <button
               type="button"
-              disabled={!latest || latest === data.date}
-              onClick={() => latest && changeDate(latest)}
+              disabled={!latest}
+              onClick={() => latest && void navigate(`/kalshi?date=${encodeURIComponent(latest)}`)}
             >
               最新
             </button>
+          </div>
+          <div className="kalshi-slot-controls" role="group" aria-label="报告档位">
+            {(["morning", "evening"] as const).map((slot) => (
+              <button key={slot} type="button" aria-pressed={data.slot === slot}
+                title={data.snapshots.some((snapshot) => snapshot.slot === slot) ? undefined : "尚未发布"}
+                onClick={() => changeSlot(slot)}>
+                {slot === "morning" ? "早间" : "晚间"}
+              </button>
+            ))}
           </div>
           <button
             type="button"
@@ -726,11 +741,11 @@ export function KalshiPage({ data }: { data: PageData }) {
         {data.error ? (
           <p className="kalshi-alert">报告暂时无法加载，请稍后重试。</p>
         ) : report ? (
-          <Dashboard key={report.date} report={report} />
+          <Dashboard key={`${report.date}-${report.slot}`} report={report} />
         ) : (
           <p className="kalshi-empty">
             {data.dates.length
-              ? `${data.date} 暂无已发布的 Kalshi 报告。`
+              ? `${data.date}${data.slot ? ` ${data.slot === "morning" ? "早间" : "晚间"}档` : ""} 暂无已发布的 Kalshi 报告。`
               : "尚无已发布的 Kalshi 报告。"}
           </p>
         )}
