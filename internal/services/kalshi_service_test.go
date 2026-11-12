@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-func kalshiFixture(t *testing.T, asOf, suffix string) string {
+func kalshiFixture(t *testing.T, asOf, slot, suffix string) string {
 	t.Helper()
 	files := map[string]string{
 		"data/signals.json": `{"rows":[{"title_zh":"线索","note":"` + suffix + `"}],"meta":{}}` + "\n",
@@ -30,7 +30,7 @@ func kalshiFixture(t *testing.T, asOf, suffix string) string {
 		"schema_version": "kalshi-dashboard-handoff/2", "date": "2026-11-09", "as_of": asOf,
 		"publication_ready": true, "collection_status": "complete",
 		"counts":   map[string]int{"signals_total": 1, "trend_rows": 1},
-		"metadata": map[string]any{"scope": "test"},
+		"metadata": map[string]any{"scope": "test", "run_slot": slot},
 		"files":    map[string]kalshiFile{},
 	}
 	for name, content := range files {
@@ -70,26 +70,29 @@ func setupKalshiDB(t *testing.T) *gorm.DB {
 func TestKalshiSaveCreateUpdateAndDeduplicate(t *testing.T) {
 	db := setupKalshiDB(t)
 	date := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
-	status, err := KalshiStatus(date)
-	if err != nil || status.Published || status.ContentHash != "" || status.AsOf != "" || status.Date != "2026-11-09" {
+	status, err := KalshiStatus(date, "evening")
+	if err != nil || status.Published || status.ContentHash != "" || status.AsOf != "" || status.Date != "2026-11-09" || status.Slot != "evening" {
 		t.Fatalf("unpublished status: %#v %v", status, err)
 	}
-	first := kalshiFixture(t, "2026-11-09T18:00:00+08:00", "first")
-	second := kalshiFixture(t, "2026-11-09T19:00:00+08:00", "second")
+	first := kalshiFixture(t, "2026-11-09T18:00:00+08:00", "evening", "first")
+	second := kalshiFixture(t, "2026-11-09T19:00:00+08:00", "evening", "second")
 	for _, step := range []struct{ source, want string }{{first, "created"}, {first, "unchanged"}, {second, "updated"}, {second, "unchanged"}} {
-		result, date, err := KalshiSave(step.source)
-		if err != nil || result != step.want || date != "2026-11-09" {
-			t.Fatalf("save: result=%q date=%q err=%v", result, date, err)
+		result, date, slot, hash, err := KalshiSave(step.source)
+		if err != nil || result != step.want || date != "2026-11-09" || slot != "evening" || len(hash) != 64 {
+			t.Fatalf("save: result=%q date=%q slot=%q err=%v", result, date, slot, err)
 		}
 	}
-	if _, _, err := KalshiSave(kalshiFixture(t, "2026-11-09T17:00:00+08:00", "stale")); !errors.Is(err, ErrKalshiStale) {
+	if _, _, _, _, err := KalshiSave(kalshiFixture(t, "2026-11-09T19:00:00+08:00", "evening", "same-time-changed")); !errors.Is(err, ErrKalshiStale) {
+		t.Fatalf("same timestamp changed: %v", err)
+	}
+	if _, _, _, _, err := KalshiSave(kalshiFixture(t, "2026-11-09T17:00:00+08:00", "evening", "stale")); !errors.Is(err, ErrKalshiStale) {
 		t.Fatalf("older snapshot: %v", err)
 	}
-	report, err := KalshiGet(date)
+	report, err := KalshiGet(date, "evening")
 	if err != nil || report == nil || report.Markdown != second {
 		t.Fatalf("current report: %#v %v", report, err)
 	}
-	status, err = KalshiStatus(date)
+	status, err = KalshiStatus(date, "evening")
 	digest := sha256.Sum256([]byte(second))
 	if err != nil || !status.Published || status.ContentHash != hex.EncodeToString(digest[:]) || status.AsOf != "2026-11-09T19:00:00+08:00" {
 		t.Fatalf("published status: %#v %v", status, err)
@@ -102,16 +105,58 @@ func TestKalshiSaveCreateUpdateAndDeduplicate(t *testing.T) {
 	if err != nil || len(dates) != 1 || dates[0] != "2026-11-09" {
 		t.Fatalf("dates: %v %v", dates, err)
 	}
+	morning := kalshiFixture(t, "2026-11-09T08:00:00+08:00", "morning", "morning")
+	if result, _, _, _, err := KalshiSave(morning); err != nil || result != "created" {
+		t.Fatalf("morning save: %s %v", result, err)
+	}
+	if dates, err := KalshiDates(); err != nil || len(dates) != 1 {
+		t.Fatalf("duplicate date: %v %v", dates, err)
+	}
+	if morningReport, err := KalshiGet(date, "morning"); err != nil || morningReport == nil || morningReport.Markdown != morning {
+		t.Fatalf("morning report: %v %v", morningReport, err)
+	}
+	if eveningReport, err := KalshiGet(date, "evening"); err != nil || eveningReport == nil || eveningReport.Markdown != second {
+		t.Fatalf("evening changed: %v %v", eveningReport, err)
+	}
+	snapshots, err := KalshiSnapshots(date)
+	if err != nil || len(snapshots) != 2 || snapshots[0].Slot != "evening" || snapshots[1].Slot != "morning" {
+		t.Fatalf("snapshots: %+v %v", snapshots, err)
+	}
+	if status, err := KalshiStatus(date, "morning"); err != nil || !status.Published || status.Slot != "morning" {
+		t.Fatalf("morning status: %+v %v", status, err)
+	}
+	if status, err := KalshiStatus(date, "evening"); err != nil || status.ContentHash != hex.EncodeToString(digest[:]) {
+		t.Fatalf("evening status changed: %+v %v", status, err)
+	}
+	if err := db.Find(&revisions).Error; err != nil || len(revisions) != 1 {
+		t.Fatalf("cross-slot revisions: %+v %v", revisions, err)
+	}
+	partial := strings.Replace(kalshiFixture(t, "2026-11-09T09:00:00+08:00", "morning", "partial gap"), `"collection_status":"complete"`, `"collection_status":"partial"`, 1)
+	if result, _, _, _, err := KalshiSave(partial); err != nil || result != "updated" {
+		t.Fatalf("morning partial update: %s %v", result, err)
+	}
+	snapshots, err = KalshiSnapshots(date)
+	if err != nil || len(snapshots) != 2 || snapshots[1].CollectionStatus != "partial" || snapshots[0].CollectionStatus != "complete" {
+		t.Fatalf("independent coverage: %+v %v", snapshots, err)
+	}
+	if eveningReport, err := KalshiGet(date, "evening"); err != nil || eveningReport.Markdown != second {
+		t.Fatalf("evening overwritten by morning: %v %v", eveningReport, err)
+	}
+	if err := db.Find(&revisions).Error; err != nil || len(revisions) != 2 {
+		t.Fatalf("independent revisions: %+v %v", revisions, err)
+	}
 }
 
 func TestKalshiParserRejectsBrokenPayloads(t *testing.T) {
-	valid := kalshiFixture(t, "2026-11-09T19:00:00+08:00", "safe")
+	valid := kalshiFixture(t, "2026-11-09T19:00:00+08:00", "evening", "safe")
 	for _, source := range []string{
 		strings.Replace(valid, "线索摘要", "duplicate\n```json manifest.json\n{}\n```\n线索摘要", 1),
 		strings.Replace(valid, "doNotExecute", "tampered", 1),
 		strings.Replace(valid, `"publication_ready":true`, `"publication_ready":false`, 1),
 		strings.Replace(valid, `"signals_total":1`, `"signals_total":2`, 1),
-		kalshiFixture(t, "2026-11-08T19:00:00+08:00", "bad date"),
+		strings.Replace(valid, `"run_slot":"evening"`, `"run_slot":"unknown"`, 1),
+		strings.Replace(valid, `"run_slot":"evening"`, `"scope":"test"`, 1),
+		kalshiFixture(t, "2026-11-08T19:00:00+08:00", "evening", "bad date"),
 	} {
 		if _, err := ParseKalshiDocument(source); !errors.Is(err, ErrKalshiInvalid) {
 			t.Fatalf("expected invalid payload, got %v", err)

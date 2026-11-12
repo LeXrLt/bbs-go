@@ -31,7 +31,7 @@
 | 创建评论或回复 | `POST` | `/api/comment/create` | 是 |
 | 删除评论或回复 | `POST` | `/api/comment/delete/{commentId}` | 是 |
 | 推送每日复盘板块 | `POST` | `/api/daily-review/ingest/{kind}` | 是，需专用权限 |
-| 查询 Kalshi 发布状态 | `GET` | `/api/kalshi/status?date=YYYY-MM-DD` | 是，需 Kalshi 同步权限 |
+| 查询 Kalshi 发布状态 | `GET` | `/api/kalshi/status?date=YYYY-MM-DD&slot=morning` | 是，需 Kalshi 同步权限 |
 | 推送 Kalshi 完整 Markdown | `POST` | `/api/kalshi/ingest` | 是，需 Kalshi 同步权限 |
 | 退出并注销 token | `GET` | `/api/login/signout` | 可选 |
 

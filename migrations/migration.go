@@ -123,4 +123,5 @@ func init() {
 	register(22, "create topic unread baselines", migrate_topic_unread_baselines)
 	register(23, "add daily review to site navigation", migrate_add_daily_review_site_nav)
 	register(24, "add Kalshi reports and site navigation", migrate_add_kalshi_reports)
+	register(25, "separate Kalshi morning and evening reports", migrate_kalshi_run_slots)
 }

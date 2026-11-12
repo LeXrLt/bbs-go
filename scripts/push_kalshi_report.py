@@ -28,7 +28,7 @@ class RetryableUploadError(UploadError):
     pass
 
 
-def manifest_date(markdown: str) -> str:
+def manifest_identity(markdown: str) -> tuple[str, str]:
     blocks = re.findall(r"^```json manifest\.json\r?\n(.*?)^```\r?$", markdown, re.M | re.S)
     if len(blocks) != 1:
         raise UploadError("expected exactly one manifest.json block")
@@ -39,9 +39,14 @@ def manifest_date(markdown: str) -> str:
             raise ValueError("invalid date")
         if date.fromisoformat(report_date).isoformat() != report_date:
             raise ValueError("invalid date")
-        return report_date
+        slot = manifest["metadata"]["run_slot"]
+        if slot not in {"morning", "evening"}:
+            raise ValueError("invalid run_slot")
+        if manifest["publication_ready"] is not True:
+            raise ValueError("publication_ready is false")
+        return report_date, slot
     except (TypeError, KeyError, ValueError, json.JSONDecodeError) as exc:
-        raise UploadError("invalid manifest date") from exc
+        raise UploadError("invalid manifest date, run_slot or publication_ready") from exc
 
 
 def request_json(url: str, token: str, markdown: str | None = None) -> dict:
@@ -72,24 +77,33 @@ def request_json(url: str, token: str, markdown: str | None = None) -> dict:
     return data
 
 
-def publish(base_url: str, token: str, markdown: str) -> tuple[str, str]:
-    report_date = manifest_date(markdown)
-    url = f"{base_url}/api/kalshi/status?{urlencode({'date': report_date})}"
-    status = request_json(url, token)
-    if status.get("date") != report_date or not isinstance(status.get("published"), bool):
-        raise UploadError("invalid publication status")
-    if status["published"] and not isinstance(status.get("content_hash"), str):
-        raise UploadError("missing published content hash")
+def publish(base_url: str, token: str, markdown: str) -> tuple[str, str, str]:
+    report_date, slot = manifest_identity(markdown)
+    url = f"{base_url}/api/kalshi/status?{urlencode({'date': report_date, 'slot': slot})}"
+
+    def status_hash() -> str | None:
+        status = request_json(url, token)
+        if status.get("date") != report_date or status.get("slot") != slot or not isinstance(status.get("published"), bool):
+            raise UploadError("invalid publication status")
+        if not status["published"]:
+            return None
+        digest = status.get("content_hash")
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise UploadError("missing published content hash")
+        return digest
+
     digest = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
-    if status["published"] and status["content_hash"] == digest:
-        return "unchanged", report_date
+    if status_hash() == digest:
+        return "unchanged", report_date, slot
 
     for attempt in range(3):
         try:
             result = request_json(f"{base_url}/api/kalshi/ingest", token, markdown)
-            if result.get("result") not in {"created", "updated", "unchanged"} or result.get("date") != report_date:
+            if result.get("result") not in {"created", "updated", "unchanged"} or result.get("date") != report_date or result.get("slot") != slot or result.get("content_hash") != digest:
                 raise UploadError("unexpected ingest result")
-            return result["result"], report_date
+            if status_hash() != digest:
+                raise UploadError("post-upload status hash mismatch")
+            return result["result"], report_date, slot
         except RetryableUploadError:
             if attempt == 2:
                 raise
@@ -117,11 +131,11 @@ def main() -> int:
             markdown = source.decode("utf-8")
         except UnicodeDecodeError as exc:
             raise UploadError("Markdown must use UTF-8") from exc
-        result, report_date = publish(base_url, token, markdown)
+        result, report_date, slot = publish(base_url, token, markdown)
     except (UploadError, OSError) as exc:
         print(f"Kalshi upload failed: {exc}", file=sys.stderr)
         return 1
-    print(f"{result}: {report_date}")
+    print(f"{result}: {report_date} {slot}")
     return 0
 
 

@@ -260,6 +260,7 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 
 	kalshiGroup := group.Group("/kalshi")
 	kalshiGroup.GET("/dates", apiHandlers.KalshiDates)
+	kalshiGroup.GET("/snapshots", apiHandlers.KalshiSnapshots)
 	kalshiGroup.GET("/status", apiHandlers.KalshiStatus)
 	kalshiGroup.GET("/report", apiHandlers.KalshiReport)
 	kalshiGroup.POST("/ingest", apiHandlers.KalshiIngest)

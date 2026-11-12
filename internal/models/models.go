@@ -53,10 +53,11 @@ type DailyReviewReportRevision struct {
 	ReplacedAt       int64  `gorm:"not null;default:0;index:idx_daily_review_revision_replaced_at" json:"replacedAt"`
 }
 
-// KalshiReport stores the complete, validated handoff document for one date.
+// KalshiReport stores one published handoff per date and run slot.
 type KalshiReport struct {
 	Model
-	ReportDate  time.Time `gorm:"type:date;not null;uniqueIndex:uk_kalshi_report_date"`
+	ReportDate  time.Time `gorm:"type:date;not null;uniqueIndex:uk_kalshi_report_date_slot"`
+	Slot        string    `gorm:"size:16;not null;default:'';uniqueIndex:uk_kalshi_report_date_slot"`
 	AsOf        time.Time `gorm:"not null"`
 	Markdown    string    `gorm:"type:text;not null"`
 	ContentHash string    `gorm:"size:64;not null"`
