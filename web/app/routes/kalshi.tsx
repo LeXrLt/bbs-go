@@ -8,26 +8,31 @@ import { useDocumentTitle } from "@/lib/use-document-title"
 
 async function load(request: Request) {
   const options = { request, signal: request.signal }
+  const params = new URL(request.url).searchParams
+  const requested = params.get("date")
+  const today = calendarToday()
+  const requestedDate = isCalendarDate(requested) && requested <= today ? requested : null
+  const rawSlot = params.get("slot")
+  const requestedSlot: KalshiSlot | null = rawSlot === "morning" || rawSlot === "evening" ? rawSlot : null
+  const prefetch = requestedDate && requestedSlot
+    ? Promise.all([
+        getKalshiSnapshots(requestedDate, options),
+        getKalshiReport(requestedDate, requestedSlot, options),
+      ]).then((value) => ({ value }), (error: unknown) => ({ error }))
+    : null
   try {
-    const { dates } = await getKalshiDates(options)
-    const params = new URL(request.url).searchParams
-    const requested = params.get("date")
-    const today = calendarToday()
-    const date =
-      isCalendarDate(requested) && requested <= today
-        ? requested
-        : dates[0] || today
-    const rawSlot = params.get("slot")
-    const requestedSlot: KalshiSlot | null = rawSlot === "morning" || rawSlot === "evening" ? rawSlot : null
+    const [{ dates }, prefetched] = await Promise.all([getKalshiDates(options), prefetch])
+    const date = requestedDate || dates[0] || today
     if (!dates.includes(date))
       return { dates, date, slot: requestedSlot, snapshots: [], report: null, error: false }
     try {
-      const [snapshotData, directReport] = requestedSlot
+      if (prefetched && "error" in prefetched) throw prefetched.error
+      const [snapshotData, directReport] = prefetched?.value ?? (requestedSlot
         ? await Promise.all([
             getKalshiSnapshots(date, options),
             getKalshiReport(date, requestedSlot, options),
           ])
-        : [await getKalshiSnapshots(date, options), null]
+        : [await getKalshiSnapshots(date, options), null])
       const { snapshots } = snapshotData
       const slot: KalshiSlot | null = requestedSlot
         ? requestedSlot
