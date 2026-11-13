@@ -1,5 +1,6 @@
 import { Readable } from "node:stream"
 import { pipeline } from "node:stream/promises"
+import { createGzip } from "node:zlib"
 
 const HOP_BY_HOP_HEADERS = new Set([
   "connection",
@@ -40,7 +41,26 @@ export function isAttachmentBinaryPath(pathname) {
   )
 }
 
-export function forwardUpstreamHeaders(pathname, response, target) {
+export function compressKalshiReport(pathname, method, requestHeaders, response) {
+  if (
+    pathname !== "/api/kalshi/report" ||
+    method !== "GET" ||
+    !response.ok ||
+    !response.body ||
+    !response.headers.get("content-type")?.includes("application/json")
+  ) return false
+
+  return (requestHeaders["accept-encoding"] || "")
+    .split(",")
+    .some((entry) => {
+      const [encoding, ...parameters] = entry.trim().toLowerCase().split(";")
+      return encoding === "gzip" && !parameters.some((param) =>
+        /^q\s*=\s*0(?:\.0*)?$/.test(param.trim())
+      )
+    })
+}
+
+export function forwardUpstreamHeaders(pathname, response, target, { gzip = false } = {}) {
   const preserveContentLength =
     isAttachmentBinaryPath(pathname) &&
     !response.headers.has("content-encoding")
@@ -57,12 +77,27 @@ export function forwardUpstreamHeaders(pathname, response, target) {
     }
     target.setHeader(key, value)
   })
+
+  if (pathname === "/api/kalshi/report") {
+    target.setHeader("Cache-Control", "private, no-store")
+    const vary = response.headers.get("vary")
+    if (!vary?.split(",").some((value) => value.trim().toLowerCase() === "accept-encoding")) {
+      target.setHeader("Vary", vary ? `${vary}, Accept-Encoding` : "Accept-Encoding")
+    }
+    if (gzip) {
+      target.setHeader("Content-Encoding", "gzip")
+    }
+  }
 }
 
-export async function streamUpstreamBody(response, target) {
+export async function streamUpstreamBody(response, target, { gzip = false } = {}) {
   if (!response.body) {
     target.end()
     return
   }
-  await pipeline(Readable.fromWeb(response.body), target)
+  if (gzip) {
+    await pipeline(Readable.fromWeb(response.body), createGzip(), target)
+  } else {
+    await pipeline(Readable.fromWeb(response.body), target)
+  }
 }

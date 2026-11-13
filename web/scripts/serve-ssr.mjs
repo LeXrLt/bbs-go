@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { createRequestListener } from "@react-router/node"
 
 import {
+  compressKalshiReport,
   forwardUpstreamHeaders,
   streamUpstreamBody,
   upstreamRequestHeaders,
@@ -95,8 +96,9 @@ createServer(async (req, res) => {
       })
 
       res.statusCode = response.status
-      forwardUpstreamHeaders(url.pathname, response, res)
-      await streamUpstreamBody(response, res)
+      const gzip = compressKalshiReport(url.pathname, req.method, req.headers, response)
+      forwardUpstreamHeaders(url.pathname, response, res, { gzip })
+      await streamUpstreamBody(response, res, { gzip })
     } catch (error) {
       if (abortController.signal.aborted || res.destroyed) return
       if (res.headersSent) {
