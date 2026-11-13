@@ -44,7 +44,7 @@ func LoginRequiredMiddleware(ctx *gin.Context) {
 		return
 	}
 
-	if isAttachmentBinaryAPIRequest(ctx.Request) {
+	if isAttachmentBinaryAPIRequest(ctx.Request) || isKalshiDownloadRequest(ctx.Request) {
 		ctx.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
@@ -87,4 +87,8 @@ func isAttachmentBinaryAPIRequest(request *http.Request) bool {
 	}
 	return strings.HasPrefix(request.URL.Path, "/api/attachment/preview/") ||
 		strings.HasPrefix(request.URL.Path, "/api/attachment/download/")
+}
+
+func isKalshiDownloadRequest(request *http.Request) bool {
+	return request.Method == http.MethodGet && request.URL.Path == "/api/kalshi/download"
 }

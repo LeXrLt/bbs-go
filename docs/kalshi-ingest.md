@@ -99,6 +99,9 @@ X-User-Token: <同一个同步账号的 token>
 页面使用 `GET /api/kalshi/dates`、`GET /api/kalshi/snapshots?date=YYYY-MM-DD`
 和 `GET /api/kalshi/report?date=YYYY-MM-DD&slot=morning`，沿用站点读权限策略。
 缺档的 report 返回 `published:false`；推送脚本不必下载完整 Markdown。
+看板 report 只返回结构化字段，不含 Markdown 或渲染后的 HTML；需要原文时
+使用 `GET /api/kalshi/download?date=YYYY-MM-DD&slot=morning` 按需下载。
+下载接口沿用站点读权限策略，未发布档位返回 HTTP 404。
 
 ## 4. 给定时任务的实现要求
 

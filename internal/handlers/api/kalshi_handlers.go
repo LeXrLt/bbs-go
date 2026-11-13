@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bbs-go/internal/handlers/render"
 	"bbs-go/internal/permissions"
 	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/errs"
@@ -10,6 +9,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -116,10 +116,32 @@ func KalshiReport(ctx *gin.Context) {
 		"date": date.Format(time.DateOnly), "slot": slot, "published": true, "content_hash": report.ContentHash, "as_of": doc.AsOf.Format(time.RFC3339),
 		"updated_at": time.UnixMilli(report.UpdateTime).UTC().Format(time.RFC3339),
 		"manifest":   doc.Manifest, "signals": doc.Signals, "trends": doc.Trends,
-		"narrative_html": render.BuildSafeMarkdownContent(doc.Narrative),
-		"content_html":   render.BuildSafeMarkdownContent(report.Markdown),
-		"markdown":       report.Markdown,
 	})
+}
+
+func KalshiDownload(ctx *gin.Context) {
+	date, ok := kalshiDate(ctx)
+	if !ok {
+		return
+	}
+	slot := ctx.Query("slot")
+	if !kalshiSlot(ctx, slot) {
+		return
+	}
+	report, err := services.KalshiGet(date, slot)
+	if err != nil {
+		slog.Error("download Kalshi report", slog.Any("err", err))
+		writeDailyReviewError(ctx, http.StatusInternalServerError, "failed to load Kalshi report")
+		return
+	}
+	if report == nil {
+		writeDailyReviewError(ctx, http.StatusNotFound, "Kalshi report not found")
+		return
+	}
+	ctx.Header("Content-Disposition", `attachment; filename="kalshi-`+date.Format(time.DateOnly)+`-`+slot+`.md"`)
+	ctx.Header("Cache-Control", "private, no-store")
+	ctx.Header("Content-Length", strconv.Itoa(len(report.Markdown)))
+	ctx.Data(http.StatusOK, "text/markdown; charset=utf-8", []byte(report.Markdown))
 }
 
 func KalshiIngest(ctx *gin.Context) {

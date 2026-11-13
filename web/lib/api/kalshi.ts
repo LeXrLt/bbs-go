@@ -26,9 +26,6 @@ export interface KalshiReport {
   }
   signals: KalshiPayload
   trends: KalshiPayload
-  narrative_html: string
-  content_html: string
-  markdown: string
 }
 
 type ReadOptions = Pick<ApiRequestOptions, "request" | "signal">

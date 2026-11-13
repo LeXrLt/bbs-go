@@ -46,6 +46,7 @@ func TestLoginRequiredMiddlewareUsesHTTPUnauthorizedForAttachmentStreams(t *test
 		{method: http.MethodHead, path: "/api/attachment/preview/file-id/spreadsheet"},
 		{method: http.MethodGet, path: "/api/attachment/download/file-id"},
 		{method: http.MethodHead, path: "/api/attachment/download/file-id"},
+		{method: http.MethodGet, path: "/api/kalshi/download"},
 	} {
 		ctx, recorder := newMiddlewareTestContext(request.method, request.path)
 		LoginRequiredMiddleware(ctx)
