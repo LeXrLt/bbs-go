@@ -22,13 +22,19 @@ async function load(request: Request) {
     if (!dates.includes(date))
       return { dates, date, slot: requestedSlot, snapshots: [], report: null, error: false }
     try {
-      const { snapshots } = await getKalshiSnapshots(date, options)
+      const [snapshotData, directReport] = requestedSlot
+        ? await Promise.all([
+            getKalshiSnapshots(date, options),
+            getKalshiReport(date, requestedSlot, options),
+          ])
+        : [await getKalshiSnapshots(date, options), null]
+      const { snapshots } = snapshotData
       const slot: KalshiSlot | null = requestedSlot
         ? requestedSlot
         : snapshots.some((snapshot) => snapshot.slot === "evening")
           ? "evening"
           : snapshots.some((snapshot) => snapshot.slot === "morning") ? "morning" : null
-      const response = slot ? await getKalshiReport(date, slot, options) : null
+      const response = directReport ?? (slot ? await getKalshiReport(date, slot, options) : null)
       if (response && (response.date !== date || response.slot !== slot ||
         (response.published && response.manifest.metadata.run_slot !== slot))) {
         throw new Error("Kalshi report slot mismatch")

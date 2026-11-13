@@ -29,5 +29,7 @@ assert.match(page, /暂无已发布的 Kalshi 报告/)
 assert.match(route, /getKalshiSnapshots\(date, options\)/)
 assert.match(route, /response\.slot !== slot/)
 assert.match(page, /kalshi-\$\{report\.date\}-\$\{report\.slot\}\.md/)
+assert.match(page, /\/api\/kalshi\/download\?date=/)
+assert.doesNotMatch(page, /report\.markdown/)
 
 console.log("Kalshi date navigation contracts passed")

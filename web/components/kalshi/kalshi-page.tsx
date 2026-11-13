@@ -648,17 +648,6 @@ export function KalshiPage({ data }: { data: PageData }) {
     if (slot === data.slot) return
     void navigate(`/kalshi?date=${encodeURIComponent(data.date)}&slot=${slot}`)
   }
-  function download() {
-    if (!report) return
-    const url = URL.createObjectURL(
-      new Blob([report.markdown], { type: "text/markdown;charset=utf-8" })
-    )
-    const anchor = document.createElement("a")
-    anchor.href = url
-    anchor.download = `kalshi-${report.date}-${report.slot}.md`
-    anchor.click()
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
-  }
   return (
     <MainShell className="kalshi-main" containerClassName="kalshi-container">
       <div className="kalshi-page">
@@ -724,14 +713,19 @@ export function KalshiPage({ data }: { data: PageData }) {
               ))}
             </div>
           </div>
-          <button
-            type="button"
-            disabled={!report}
-            onClick={download}
-            title="下载完整 Markdown"
-          >
-            <DownloadIcon size={16} /> 原文
-          </button>
+          {report ? (
+            <a
+              href={`/api/kalshi/download?date=${encodeURIComponent(report.date)}&slot=${report.slot}`}
+              download={`kalshi-${report.date}-${report.slot}.md`}
+              title="下载完整 Markdown"
+            >
+              <DownloadIcon size={16} /> 原文
+            </a>
+          ) : (
+            <button type="button" disabled title="下载完整 Markdown">
+              <DownloadIcon size={16} /> 原文
+            </button>
+          )}
         </div>
         <nav className="kalshi-section-nav" aria-label="看板内容">
           <a href="#signals">市场线索</a>
