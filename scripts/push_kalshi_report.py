@@ -17,7 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
-MAX_MARKDOWN_BYTES = 2_000_000
+MAX_MARKDOWN_BYTES = 16 * 1024 * 1024
 
 
 class UploadError(Exception):

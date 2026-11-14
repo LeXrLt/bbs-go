@@ -19,6 +19,8 @@ type kalshiUpload struct {
 	Markdown string `json:"markdown"`
 }
 
+const kalshiUploadMaxBodyBytes = 20 * 1024 * 1024
+
 func KalshiDates(ctx *gin.Context) {
 	dates, err := services.KalshiDates()
 	if err != nil {
@@ -154,9 +156,14 @@ func KalshiIngest(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, errs.NoPermission())
 		return
 	}
-	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, 6*services.MaxKalshiMarkdownLength+64*1024)
+	ctx.Request.Body = http.MaxBytesReader(ctx.Writer, ctx.Request.Body, kalshiUploadMaxBodyBytes)
 	var upload kalshiUpload
 	if err := ginx.BindJSON(ctx, &upload); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			writeDailyReviewError(ctx, http.StatusRequestEntityTooLarge, "Kalshi JSON payload exceeds 20 MiB")
+			return
+		}
 		writeDailyReviewError(ctx, http.StatusBadRequest, "invalid Kalshi payload")
 		return
 	}

@@ -18,7 +18,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-const MaxKalshiMarkdownLength = 2_000_000
+const MaxKalshiMarkdownLength = 16 * 1024 * 1024
 
 var ErrKalshiInvalid = errors.New("invalid Kalshi document")
 var ErrKalshiStale = errors.New("an older Kalshi snapshot cannot replace the published report")
@@ -74,8 +74,11 @@ func kalshiBlock(source, language, name string) (string, error) {
 }
 
 func ParseKalshiDocument(source string) (KalshiDocument, error) {
-	if len(source) == 0 || len(source) > MaxKalshiMarkdownLength || !utf8.ValidString(source) {
-		return KalshiDocument{}, fmt.Errorf("%w: empty, oversized or non-UTF-8 Markdown", ErrKalshiInvalid)
+	if len(source) > MaxKalshiMarkdownLength {
+		return KalshiDocument{}, fmt.Errorf("%w: Markdown exceeds 16 MiB", ErrKalshiInvalid)
+	}
+	if len(source) == 0 || !utf8.ValidString(source) {
+		return KalshiDocument{}, fmt.Errorf("%w: empty or non-UTF-8 Markdown", ErrKalshiInvalid)
 	}
 	manifestBlock, err := kalshiBlock(source, "json", "manifest.json")
 	if err != nil {

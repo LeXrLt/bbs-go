@@ -2,6 +2,9 @@ package api
 
 import (
 	"bbs-go/internal/models"
+	"bbs-go/internal/models/constants"
+	"bbs-go/internal/pkg/common"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/mlogclub/simple/sqls"
 )
 
 func setupKalshiHandlerReport(t *testing.T) string {
@@ -104,5 +108,51 @@ func TestKalshiDownloadExactDocumentAndValidation(t *testing.T) {
 		if response.Code != test.want {
 			t.Fatalf("%s status=%d body=%s", test.query, response.Code, response.Body.String())
 		}
+	}
+}
+
+func runKalshiIngest(t *testing.T, body []byte) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/kalshi/ingest", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	common.SetCurrentUser(ctx, &models.User{Model: models.Model{Id: 1}, Roles: constants.RoleOwner})
+	KalshiIngest(ctx)
+	return recorder
+}
+
+func TestKalshiIngestLargeDocumentAndBodyLimit(t *testing.T) {
+	// The fixture is already a valid stored report; a newer, larger source updates it.
+	previous := setupKalshiHandlerReport(t)
+	if err := sqls.DB().AutoMigrate(&models.KalshiReportRevision{}); err != nil {
+		t.Fatal(err)
+	}
+	large := strings.Replace(previous, `"as_of":"2026-11-09T19:00:00+08:00"`, `"as_of":"2026-11-09T20:00:00+08:00"`, 1)
+	large += strings.Repeat("x", 2_225_309-len(large))
+	if len(large) != 2_225_309 {
+		t.Fatalf("large fixture size = %d", len(large))
+	}
+	body, err := json.Marshal(kalshiUpload{Markdown: large})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"updated", "unchanged"} {
+		response := runKalshiIngest(t, body)
+		if response.Code != http.StatusOK || !responseSucceeded(response.Body.Bytes()) || !strings.Contains(response.Body.String(), `"result":"`+want+`"`) {
+			t.Fatalf("large upload %s: %d %s", want, response.Code, response.Body.String())
+		}
+	}
+	download := runKalshiRead(t, "/api/kalshi/download?date=2026-11-09&slot=evening", KalshiDownload)
+	if download.Code != http.StatusOK || download.Body.String() != large || download.Header().Get("Content-Length") != fmt.Sprint(len(large)) {
+		t.Fatalf("large download mismatch: status=%d bytes=%d", download.Code, download.Body.Len())
+	}
+	tooLargeBody, err := json.Marshal(kalshiUpload{Markdown: strings.Repeat("x", kalshiUploadMaxBodyBytes)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := runKalshiIngest(t, tooLargeBody); response.Code != http.StatusRequestEntityTooLarge || !strings.Contains(response.Body.String(), "20 MiB") {
+		t.Fatalf("oversized JSON body: %d %s", response.Code, response.Body.String())
 	}
 }

@@ -164,6 +164,47 @@ func TestKalshiParserRejectsBrokenPayloads(t *testing.T) {
 	}
 }
 
+func TestKalshiLargeReportRoundTripAndLimits(t *testing.T) {
+	setupKalshiDB(t)
+	date := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	largeReport := func(asOf, suffix string) string {
+		base := kalshiFixture(t, asOf, "evening", suffix)
+		return base + strings.Repeat("x", 2_225_309-len(base))
+	}
+	first := largeReport("2026-11-09T18:00:00+08:00", "first")
+	second := largeReport("2026-11-09T19:00:00+08:00", "second")
+	for _, step := range []struct{ source, want string }{{first, "created"}, {first, "unchanged"}, {second, "updated"}, {second, "unchanged"}} {
+		result, gotDate, slot, hash, err := KalshiSave(step.source)
+		digest := sha256.Sum256([]byte(step.source))
+		if err != nil || result != step.want || gotDate != "2026-11-09" || slot != "evening" || hash != hex.EncodeToString(digest[:]) {
+			t.Fatalf("save large report: result=%s date=%s slot=%s hash=%s err=%v", result, gotDate, slot, hash, err)
+		}
+	}
+	report, err := KalshiGet(date, "evening")
+	if err != nil || report == nil || report.Markdown != second {
+		t.Fatalf("large report was not stored intact: %v", err)
+	}
+	status, err := KalshiStatus(date, "evening")
+	digest := sha256.Sum256([]byte(second))
+	if err != nil || !status.Published || status.ContentHash != hex.EncodeToString(digest[:]) {
+		t.Fatalf("large report status hash: %+v %v", status, err)
+	}
+	var revision models.KalshiReportRevision
+	if err := sqls.DB().Where("report_id = ?", report.Id).Take(&revision).Error; err != nil || revision.Markdown != first {
+		t.Fatalf("large report revision was not stored intact: %v", err)
+	}
+
+	base := kalshiFixture(t, "2026-11-09T19:00:00+08:00", "evening", "boundary")
+	// Keep the embedded manifest and block hashes valid; only pad the narrative.
+	atLimit := base + strings.Repeat("x", MaxKalshiMarkdownLength-len(base))
+	if _, err := ParseKalshiDocument(atLimit); err != nil {
+		t.Fatalf("16 MiB report rejected: %v", err)
+	}
+	if _, err := ParseKalshiDocument(atLimit + "x"); !errors.Is(err, ErrKalshiInvalid) || !strings.Contains(err.Error(), "16 MiB") {
+		t.Fatalf("over-limit report accepted or error unclear: %v", err)
+	}
+}
+
 func TestKalshiRealHandoffWhenProvided(t *testing.T) {
 	path := os.Getenv("KALSHI_SAMPLE_FILE")
 	if path == "" {
