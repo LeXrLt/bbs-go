@@ -87,7 +87,9 @@ X-User-Token: <同一个同步账号的 token>
 日期、档位与整份原文哈希，再查询同档状态核对哈希。以服务端
 结果为准：即使查询状态后另一任务先上传，相同内容再次 POST 仍返回 `unchanged`。
 
-文件 UTF-8 编码、大小须不超过 **2,000,000 字节**。manifest 的
+文件须为 UTF-8 编码，解码后的 Markdown 大小不超过 **16 MiB (16,777,216 字节)**；
+`POST /api/kalshi/ingest` 的 JSON 请求体不超过 **20 MiB (20,971,520 字节)**。
+Markdown 超限返回 HTTP 400，JSON 请求体超限返回 HTTP 413。manifest 的
 `schema_version` 必须为 `kalshi-dashboard-handoff/2`，`publication_ready=true`，
 `date` 合法，`as_of` 日期与 `date` 对应，`metadata.run_slot` 为 `morning` 或
 `evening`，`collection_status` 为 `complete` 或

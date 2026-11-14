@@ -13,6 +13,9 @@ spec.loader.exec_module(module)
 class PublishTests(unittest.TestCase):
     markdown = '# Report\n\n```json manifest.json\n{"date":"2026-11-09","metadata":{"run_slot":"morning"},"publication_ready":true}\n```\n'
 
+    def test_markdown_limit_matches_server(self):
+        self.assertEqual(module.MAX_MARKDOWN_BYTES, 16 * 1024 * 1024)
+
     def status(self, published=False, content_hash=None):
         return {"date": "2026-11-09", "slot": "morning", "published": published, **({"content_hash": content_hash} if published else {})}
 

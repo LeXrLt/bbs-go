@@ -39,7 +39,8 @@ Markdown** 推送至 BBS-Go 的独立 `/kalshi` 看板，同时继续在抓取�
 4. `manifest.files` 对后三个数据/页面代码块逐个记录**代码块内部文本**的
    UTF-8 字节数和 SHA-256；`counts.signals_total`、`counts.trend_rows` 与
    两份 JSON 的 `rows` 数量一致。文件整体必须是非空 UTF-8，且不超过
-   2,000,000 字节。不要在计算哈希之后修改换行或代码块内容。
+   16 MiB (16,777,216 字节)；JSON 上传请求体不超过 20 MiB。
+   不要在计算哈希之后修改换行或代码块内容。
 5. 先完成本地文件写入并归档，再启动推送；不要读取仍在写入的文件。现有
    `daily_run.py` 在 `publication_ready=true` 时生成
    `产物/最新发布文档.md` 并归档批次文件。建议推送任务读取这份已完成的文件，
