@@ -27,6 +27,7 @@
   "dependencies": {
     "@base-ui/react": "^1.4.1",
     "@react-router/node": "^7.15.0",
+    "@tanstack/react-virtual": "^3.14.26",
     "@tiptap/core": "^3.23.1",
     "@tiptap/extension-color": "^3.23.1",
     "@tiptap/extension-horizontal-rule": "^3.23.1",

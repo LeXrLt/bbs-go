@@ -147,6 +147,31 @@ func TestKalshiSaveCreateUpdateAndDeduplicate(t *testing.T) {
 	}
 }
 
+func TestKalshiSnapshotsBackfillsLegacyAndReadsMetadataOnly(t *testing.T) {
+	db := setupKalshiDB(t)
+	date := time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)
+	if _, _, _, _, err := KalshiSave(kalshiFixture(t, "2026-11-09T19:00:00+08:00", "evening", "legacy")); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&models.KalshiReport{}).Where("slot = ?", "evening").Update("collection_status", "").Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{"complete", "complete"} {
+		snapshots, err := KalshiSnapshots(date)
+		if err != nil || len(snapshots) != 1 || snapshots[0].CollectionStatus != expected {
+			t.Fatalf("snapshot: %+v %v", snapshots, err)
+		}
+		// The second read must not inspect the large Markdown field.
+		if err := db.Model(&models.KalshiReport{}).Where("slot = ?", "evening").Update("markdown", "not a report").Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var report models.KalshiReport
+	if err := db.Where("slot = ?", "evening").Take(&report).Error; err != nil || report.CollectionStatus != "complete" {
+		t.Fatalf("backfill: %+v %v", report, err)
+	}
+}
+
 func TestKalshiParserRejectsBrokenPayloads(t *testing.T) {
 	valid := kalshiFixture(t, "2026-11-09T19:00:00+08:00", "evening", "safe")
 	for _, source := range []string{
