@@ -46,13 +46,14 @@ type KalshiManifest struct {
 }
 
 type KalshiDocument struct {
-	Date      time.Time
-	Slot      string
-	AsOf      time.Time
-	Manifest  json.RawMessage
-	Signals   json.RawMessage
-	Trends    json.RawMessage
-	Narrative string
+	Date             time.Time
+	Slot             string
+	AsOf             time.Time
+	CollectionStatus string
+	Manifest         json.RawMessage
+	Signals          json.RawMessage
+	Trends           json.RawMessage
+	Narrative        string
 }
 
 type KalshiPublishStatus struct {
@@ -134,7 +135,7 @@ func ParseKalshiDocument(source string) (KalshiDocument, error) {
 	if index := strings.Index(source, "\n## 数据缺口与来源\n"); index >= 0 {
 		narrative = source[:index]
 	}
-	return KalshiDocument{Date: date, Slot: manifest.Metadata.RunSlot, AsOf: asOf, Manifest: json.RawMessage(manifestBlock), Signals: blocks["data/signals.json"], Trends: blocks["data/trends.json"], Narrative: narrative}, nil
+	return KalshiDocument{Date: date, Slot: manifest.Metadata.RunSlot, AsOf: asOf, CollectionStatus: manifest.CollectionStatus, Manifest: json.RawMessage(manifestBlock), Signals: blocks["data/signals.json"], Trends: blocks["data/trends.json"], Narrative: narrative}, nil
 }
 
 func ValidKalshiSlot(slot string) bool { return slot == "morning" || slot == "evening" }
@@ -182,22 +183,34 @@ type KalshiSnapshot struct {
 
 func KalshiSnapshots(date time.Time) ([]KalshiSnapshot, error) {
 	var reports []models.KalshiReport
-	if err := sqls.DB().Where("report_date = ? AND slot IN ?", date, []string{"morning", "evening"}).Order("slot ASC").Find(&reports).Error; err != nil {
+	if err := sqls.DB().Model(&models.KalshiReport{}).Select("id", "slot", "as_of", "collection_status").Where("report_date = ? AND slot IN ?", date, []string{"morning", "evening"}).Order("slot ASC").Find(&reports).Error; err != nil {
 		return nil, err
 	}
 	snapshots := make([]KalshiSnapshot, 0, len(reports))
 	for _, report := range reports {
-		var manifest struct {
-			CollectionStatus string `json:"collection_status"`
+		status := report.CollectionStatus
+		if status == "" {
+			// Existing rows predate the summary column. Backfill each once.
+			var legacy models.KalshiReport
+			if err := sqls.DB().Model(&models.KalshiReport{}).Select("markdown", "content_hash").Where("id = ?", report.Id).Take(&legacy).Error; err != nil {
+				return nil, err
+			}
+			block, err := kalshiBlock(legacy.Markdown, "json", "manifest.json")
+			if err != nil {
+				return nil, err
+			}
+			var manifest struct {
+				CollectionStatus string `json:"collection_status"`
+			}
+			if err := json.Unmarshal([]byte(block), &manifest); err != nil || (manifest.CollectionStatus != "complete" && manifest.CollectionStatus != "partial") {
+				return nil, fmt.Errorf("%w: invalid stored collection_status", ErrKalshiInvalid)
+			}
+			status = manifest.CollectionStatus
+			if err := sqls.DB().Model(&models.KalshiReport{}).Where("id = ? AND content_hash = ? AND collection_status = ?", report.Id, legacy.ContentHash, "").Update("collection_status", status).Error; err != nil {
+				return nil, err
+			}
 		}
-		block, err := kalshiBlock(report.Markdown, "json", "manifest.json")
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal([]byte(block), &manifest); err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, KalshiSnapshot{Slot: report.Slot, AsOf: report.AsOf.Format(time.RFC3339), CollectionStatus: manifest.CollectionStatus})
+		snapshots = append(snapshots, KalshiSnapshot{Slot: report.Slot, AsOf: report.AsOf.Format(time.RFC3339), CollectionStatus: status})
 	}
 	return snapshots, nil
 }
@@ -219,7 +232,7 @@ func KalshiSave(source string) (string, string, string, string, error) {
 			}
 			now := dates.NowTimestamp()
 			if errors.Is(found, gorm.ErrRecordNotFound) {
-				insert := &models.KalshiReport{ReportDate: doc.Date, Slot: doc.Slot, AsOf: doc.AsOf, Markdown: source, ContentHash: hash, CreateTime: now, UpdateTime: now}
+				insert := &models.KalshiReport{ReportDate: doc.Date, Slot: doc.Slot, AsOf: doc.AsOf, Markdown: source, ContentHash: hash, CollectionStatus: doc.CollectionStatus, CreateTime: now, UpdateTime: now}
 				created := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(insert)
 				if created.Error != nil {
 					return created.Error
@@ -240,7 +253,7 @@ func KalshiSave(source string) (string, string, string, string, error) {
 				return err
 			}
 			updated := tx.Model(&models.KalshiReport{}).Where("id = ? AND content_hash = ? AND as_of < ?", current.Id, current.ContentHash, doc.AsOf).
-				Updates(map[string]any{"as_of": doc.AsOf, "markdown": source, "content_hash": hash, "update_time": now})
+				Updates(map[string]any{"as_of": doc.AsOf, "markdown": source, "content_hash": hash, "collection_status": doc.CollectionStatus, "update_time": now})
 			if updated.Error != nil {
 				return updated.Error
 			}

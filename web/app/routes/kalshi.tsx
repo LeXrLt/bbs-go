@@ -1,71 +1,68 @@
 import { useLoaderData } from "react-router"
 
 import { KalshiPage } from "@/components/kalshi/kalshi-page"
-import { getKalshiDates, getKalshiReport, getKalshiSnapshots, type KalshiSlot } from "@/lib/api/kalshi"
+import {
+  getKalshiDates,
+  getKalshiSnapshots,
+  type KalshiSlot,
+} from "@/lib/api/kalshi"
+import {
+  cachedKalshiDates,
+  cachedKalshiSnapshots,
+} from "@/lib/api/kalshi-page-cache"
 import { calendarToday, isCalendarDate } from "@/lib/calendar"
 import { localizedTitle, pageMeta, rootDataFromMatches } from "@/lib/seo"
 import { useDocumentTitle } from "@/lib/use-document-title"
 
-async function load(request: Request) {
+async function load(request: Request, client: boolean) {
   const options = { request, signal: request.signal }
   const params = new URL(request.url).searchParams
   const requested = params.get("date")
   const today = calendarToday()
-  const requestedDate = isCalendarDate(requested) && requested <= today ? requested : null
+  const requestedDate =
+    isCalendarDate(requested) && requested <= today ? requested : null
   const rawSlot = params.get("slot")
-  const requestedSlot: KalshiSlot | null = rawSlot === "morning" || rawSlot === "evening" ? rawSlot : null
-  const prefetch = requestedDate && requestedSlot
-    ? Promise.all([
-        getKalshiSnapshots(requestedDate, options),
-        getKalshiReport(requestedDate, requestedSlot, options),
-      ]).then((value) => ({ value }), (error: unknown) => ({ error }))
-    : null
+  const requestedSlot: KalshiSlot | null =
+    rawSlot === "morning" || rawSlot === "evening" ? rawSlot : null
   try {
-    const [{ dates }, prefetched] = await Promise.all([getKalshiDates(options), prefetch])
+    const dates = client
+      ? await cachedKalshiDates()
+      : (await getKalshiDates(options)).dates
     const date = requestedDate || dates[0] || today
     if (!dates.includes(date))
-      return { dates, date, slot: requestedSlot, snapshots: [], report: null, error: false }
+      return { dates, date, slot: requestedSlot, snapshots: [], error: false }
     try {
-      if (prefetched && "error" in prefetched) throw prefetched.error
-      const [snapshotData, directReport] = prefetched?.value ?? (requestedSlot
-        ? await Promise.all([
-            getKalshiSnapshots(date, options),
-            getKalshiReport(date, requestedSlot, options),
-          ])
-        : [await getKalshiSnapshots(date, options), null])
-      const { snapshots } = snapshotData
+      const snapshots = client
+        ? await cachedKalshiSnapshots(date)
+        : (await getKalshiSnapshots(date, options)).snapshots
       const slot: KalshiSlot | null = requestedSlot
         ? requestedSlot
         : snapshots.some((snapshot) => snapshot.slot === "evening")
           ? "evening"
-          : snapshots.some((snapshot) => snapshot.slot === "morning") ? "morning" : null
-      const response = directReport ?? (slot ? await getKalshiReport(date, slot, options) : null)
-      if (response && (response.date !== date || response.slot !== slot ||
-        (response.published && response.manifest.metadata.run_slot !== slot))) {
-        throw new Error("Kalshi report slot mismatch")
-      }
-      return {
-        dates,
-        date,
-        slot,
-        snapshots,
-        report: response?.published ? response : null,
-        error: false,
-      }
+          : snapshots.some((snapshot) => snapshot.slot === "morning")
+            ? "morning"
+            : null
+      return { dates, date, slot, snapshots, error: false }
     } catch {
-      return { dates, date, slot: requestedSlot, snapshots: [], report: null, error: true }
+      return { dates, date, slot: requestedSlot, snapshots: [], error: true }
     }
   } catch {
-    return { dates: [] as string[], date: "", slot: null, snapshots: [], report: null, error: true }
+    return {
+      dates: [] as string[],
+      date: "",
+      slot: null,
+      snapshots: [],
+      error: true,
+    }
   }
 }
 
 export async function loader({ request }: { request: Request }) {
-  return load(request)
+  return load(request, false)
 }
 
 export async function clientLoader({ request }: { request: Request }) {
-  return load(request)
+  return load(request, true)
 }
 
 export function meta({
