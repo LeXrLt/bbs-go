@@ -300,21 +300,6 @@ function UserMenu({
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/tasks" className="flex cursor-pointer items-center">
-              <ListChecks className="mr-2 h-4 w-4" />
-              {t("common.header.tasks")}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link
-              href="/user/favorites"
-              className="flex cursor-pointer items-center"
-            >
-              <Heart className="mr-2 h-4 w-4" />
-              {t("common.header.favorites")}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
             <Link
               href="/user/profile"
               className="flex cursor-pointer items-center"
