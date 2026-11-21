@@ -10,6 +10,7 @@ import { useAppState } from "@/components/app/app-provider"
 import { apiFetch } from "@/lib/api/client"
 import type { Badge, CheckInInfo, UserSummary } from "@/lib/api/types"
 import type { FriendLink } from "@/lib/api/misc"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import type { TFunction } from "@/lib/i18n"
 import { useI18n } from "@/lib/i18n/provider"
 
@@ -181,7 +182,7 @@ export function HomeAside() {
   }, [])
 
   React.useEffect(() => {
-    if (!user) {
+    if (!SHOW_COMMUNITY_EXTRAS || !user) {
       setBadges([])
       return
     }

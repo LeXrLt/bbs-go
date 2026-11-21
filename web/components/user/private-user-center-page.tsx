@@ -23,6 +23,7 @@ import type {
   UserSummary,
 } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n/provider"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 export type PrivateUserCenterKind = "favorites" | "messages" | "scores"
 type PrivateUserCenterItem = Favorite | UserMessage | ScoreLog
@@ -96,17 +97,21 @@ export function PrivateUserCenterPage({
     let mounted = true
     void Promise.all([
       apiFetch<PageData<PrivateUserCenterItem>>(listPath(kind)),
-      kind === "messages"
+      kind === "messages" || !SHOW_COMMUNITY_EXTRAS
         ? Promise.resolve([])
         : apiFetch<Badge[]>("/api/badge/badges", {
             params: { userId: user.id },
           }).catch(() => []),
-      apiFetch<PageData<UserSummary>>("/api/fans/recent/fans", {
-        params: { userId: user.id },
-      }).catch(() => ({ results: [], cursor: "", hasMore: false })),
-      apiFetch<PageData<UserSummary>>("/api/fans/recent/follow", {
-        params: { userId: user.id },
-      }).catch(() => ({ results: [], cursor: "", hasMore: false })),
+      SHOW_COMMUNITY_EXTRAS
+        ? apiFetch<PageData<UserSummary>>("/api/fans/recent/fans", {
+            params: { userId: user.id },
+          }).catch(() => ({ results: [], cursor: "", hasMore: false }))
+        : Promise.resolve({ results: [] }),
+      SHOW_COMMUNITY_EXTRAS
+        ? apiFetch<PageData<UserSummary>>("/api/fans/recent/follow", {
+            params: { userId: user.id },
+          }).catch(() => ({ results: [], cursor: "", hasMore: false }))
+        : Promise.resolve({ results: [] }),
     ]).then(([nextData, nextBadges, nextFans, nextFollowed]) => {
       if (!mounted) return
 

@@ -2,6 +2,7 @@ import { UserProfileCard } from "@/components/user/user-profile-card"
 import { UserCenterSidebar } from "@/components/user/user-sidebar"
 import type { Badge, UserSummary } from "@/lib/api/types"
 import type { TFunction } from "@/lib/i18n"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 export function UserCenterShell({
   user,
@@ -35,18 +36,34 @@ export function UserCenterShell({
           currentUser={currentUser}
         />
       </div>
-      <div className="main-container right-main side-size-360 container">
-        <UserCenterSidebar
-          user={user}
-          currentUser={currentUser}
-          badges={badges}
-          fans={fans}
-          followed={followed}
-          showCounts={showCounts}
-          showBadges={showBadges}
-          t={t}
-        />
-        <div className="right-container">{children}</div>
+      <div
+        className={
+          SHOW_COMMUNITY_EXTRAS
+            ? "main-container right-main side-size-360 container"
+            : "main-container container flex"
+        }
+      >
+        {SHOW_COMMUNITY_EXTRAS ? (
+          <UserCenterSidebar
+            user={user}
+            currentUser={currentUser}
+            badges={badges}
+            fans={fans}
+            followed={followed}
+            showCounts={showCounts}
+            showBadges={showBadges}
+            t={t}
+          />
+        ) : null}
+        <div
+          className={
+            SHOW_COMMUNITY_EXTRAS
+              ? "right-container"
+              : "right-container min-w-0 flex-1"
+          }
+        >
+          {children}
+        </div>
       </div>
     </section>
   )

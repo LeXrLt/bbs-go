@@ -16,6 +16,7 @@ import { apiFetch } from "@/lib/api/client"
 import { useCurrentUser } from "@/components/app/app-provider"
 import type { Badge, CheckInInfo, UserSummary } from "@/lib/api/types"
 import { prettyDate } from "@/lib/format"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import { useI18n } from "@/lib/i18n/provider"
 import { buildSigninHref, toast, useToastActions } from "@/lib/toast"
 
@@ -58,7 +59,7 @@ function TasksUserCardContent({
   const fullPath = `${pathname || "/"}${queryString ? `?${queryString}` : ""}`
 
   React.useEffect(() => {
-    if (!effectiveUser) {
+    if (!SHOW_COMMUNITY_EXTRAS || !effectiveUser) {
       return
     }
 
@@ -125,14 +126,15 @@ function TasksUserCardContent({
           </p>
         </div>
       </div>
-      {effectiveUser.levelTitle || ownedBadges.length > 0 ? (
+      {effectiveUser.levelTitle ||
+      (SHOW_COMMUNITY_EXTRAS && ownedBadges.length > 0) ? (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
           {effectiveUser.levelTitle ? (
             <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
               {effectiveUser.levelTitle}
             </span>
           ) : null}
-          {ownedBadges.length > 0 ? (
+          {SHOW_COMMUNITY_EXTRAS && ownedBadges.length > 0 ? (
             <Link
               href={`/user/${effectiveUser.id}/badges`}
               className="flex flex-wrap items-center transition hover:opacity-90"

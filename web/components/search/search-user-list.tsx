@@ -5,6 +5,7 @@ import { UserAvatar } from "@/components/common/avatar"
 import { EmptyState } from "@/components/common/empty-state"
 import type { SearchUser } from "@/lib/api/types"
 import { formatDate } from "@/lib/format"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import { useI18n } from "@/lib/i18n/provider"
 
 export function SearchUserList({ results }: { results: SearchUser[] }) {
@@ -55,12 +56,15 @@ export function SearchUserList({ results }: { results: SearchUser[] }) {
                       })}
                     </span>
                   ) : null}
-                  {typeof user.fansCount === "number" ? (
+                  {SHOW_COMMUNITY_EXTRAS &&
+                  typeof user.fansCount === "number" ? (
                     <span>
                       {t("pages.search.userFans", { count: user.fansCount })}
                     </span>
                   ) : null}
-                  {item.createTime ? <span>{formatDate(item.createTime)}</span> : null}
+                  {item.createTime ? (
+                    <span>{formatDate(item.createTime)}</span>
+                  ) : null}
                 </div>
               </div>
             </div>

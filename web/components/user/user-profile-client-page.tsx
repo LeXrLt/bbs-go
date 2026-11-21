@@ -22,6 +22,7 @@ import type {
   UserSummary,
 } from "@/lib/api/types"
 import { formatDate } from "@/lib/format"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import { useI18n } from "@/lib/i18n/provider"
 import { useRouteData, useRouteSegment } from "@/lib/spa-route"
 import { useDocumentTitle } from "@/lib/use-document-title"
@@ -60,19 +61,25 @@ const emptyUserPage: PageData<UserSummary> = {
 async function loadUserShellData(userId: string): Promise<UserShellData> {
   const [user, badges, fans, followed] = await Promise.all([
     apiFetch<UserSummary>(`/api/user/${userId}`),
-    apiFetch<Badge[]>("/api/badge/badges", { params: { userId } }).catch(
-      () => []
-    ),
-    apiFetch<PageData<UserSummary>>("/api/fans/recent/fans", {
-      params: { userId },
-    })
-      .then((data) => data.results || [])
-      .catch(() => []),
-    apiFetch<PageData<UserSummary>>("/api/fans/recent/follow", {
-      params: { userId },
-    })
-      .then((data) => data.results || [])
-      .catch(() => []),
+    SHOW_COMMUNITY_EXTRAS
+      ? apiFetch<Badge[]>("/api/badge/badges", { params: { userId } }).catch(
+          () => []
+        )
+      : Promise.resolve([]),
+    SHOW_COMMUNITY_EXTRAS
+      ? apiFetch<PageData<UserSummary>>("/api/fans/recent/fans", {
+          params: { userId },
+        })
+          .then((data) => data.results || [])
+          .catch(() => [])
+      : Promise.resolve([]),
+    SHOW_COMMUNITY_EXTRAS
+      ? apiFetch<PageData<UserSummary>>("/api/fans/recent/follow", {
+          params: { userId },
+        })
+          .then((data) => data.results || [])
+          .catch(() => [])
+      : Promise.resolve([]),
   ])
 
   return { user, badges, fans, followed }
