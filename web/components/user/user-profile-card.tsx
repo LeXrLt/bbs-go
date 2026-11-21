@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/common/avatar"
 import { FollowButton } from "@/components/user/follow-button"
 import { BackgroundUploadButton } from "@/components/user/image-upload"
 import type { Badge, UserSummary } from "@/lib/api/types"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 type UserProfileSummary = UserSummary & {
   level?: number
@@ -65,24 +66,25 @@ export function UserProfileCard({
                 <span className="tabular-nums">{user.level}</span>
               </span>
             ) : null}
-            {wornBadges.map((badge) => (
-              <Link
-                key={badge.id}
-                href={`/user/${user.id}/badges`}
-                className="badge-icon shrink-0"
-                title={badge.title}
-              >
-                {badge.icon ? (
-                  <img
-                    src={badge.icon}
-                    alt={badge.title || ""}
-                    className="h-6 w-6 object-contain"
-                  />
-                ) : (
-                  <Medal className="h-5 w-5" />
-                )}
-              </Link>
-            ))}
+            {SHOW_COMMUNITY_EXTRAS &&
+              wornBadges.map((badge) => (
+                <Link
+                  key={badge.id}
+                  href={`/user/${user.id}/badges`}
+                  className="badge-icon shrink-0"
+                  title={badge.title}
+                >
+                  {badge.icon ? (
+                    <img
+                      src={badge.icon}
+                      alt={badge.title || ""}
+                      className="h-6 w-6 object-contain"
+                    />
+                  ) : (
+                    <Medal className="h-5 w-5" />
+                  )}
+                </Link>
+              ))}
           </div>
           {user.description ? (
             <div className="description">
@@ -91,9 +93,9 @@ export function UserProfileCard({
           ) : null}
         </div>
         <div className="action-btns">
-          {isOwner ? null : (
+          {SHOW_COMMUNITY_EXTRAS && !isOwner ? (
             <FollowButton userId={user.id} initialFollowed={user.followed} />
-          )}
+          ) : null}
         </div>
       </div>
     </section>

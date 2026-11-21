@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useI18n } from "@/lib/i18n/provider"
 import { useDocumentTitle } from "@/lib/use-document-title"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 import {
   requireDashboardAdmin,
@@ -66,7 +67,10 @@ function dashboardBreadcrumbs(
           title: t("dashboard.nav.articles"),
           url: "/dashboard/articles",
         },
-        categories: { title: t("dashboard.nav.categories"), url: "/dashboard/categories" },
+        categories: {
+          title: t("dashboard.nav.categories"),
+          url: "/dashboard/categories",
+        },
         links: { title: t("dashboard.nav.links"), url: "/dashboard/links" },
         "forbidden-words": {
           title: t("dashboard.nav.forbiddenWords"),
@@ -79,10 +83,14 @@ function dashboardBreadcrumbs(
       url: "/dashboard/users",
       items: {
         users: { title: t("dashboard.nav.userList"), url: "/dashboard/users" },
-        "user-badges": {
-          title: t("dashboard.nav.userBadges"),
-          url: "/dashboard/user-badges",
-        },
+        ...(SHOW_COMMUNITY_EXTRAS
+          ? {
+              "user-badges": {
+                title: t("dashboard.nav.userBadges"),
+                url: "/dashboard/user-badges",
+              },
+            }
+          : {}),
         "user-exp-logs": {
           title: t("dashboard.nav.userExpLogs"),
           url: "/dashboard/user-exp-logs",
@@ -95,9 +103,16 @@ function dashboardBreadcrumbs(
     },
     {
       title: t("dashboard.nav.growth"),
-      url: "/dashboard/badges",
+      url: SHOW_COMMUNITY_EXTRAS ? "/dashboard/badges" : "/dashboard/levels",
       items: {
-        badges: { title: t("dashboard.nav.badges"), url: "/dashboard/badges" },
+        ...(SHOW_COMMUNITY_EXTRAS
+          ? {
+              badges: {
+                title: t("dashboard.nav.badges"),
+                url: "/dashboard/badges",
+              },
+            }
+          : {}),
         levels: { title: t("dashboard.nav.levels"), url: "/dashboard/levels" },
         tasks: { title: t("dashboard.nav.tasks"), url: "/dashboard/tasks" },
       },
@@ -130,10 +145,7 @@ function dashboardBreadcrumbs(
   for (const group of groups) {
     const item = group.items[page]
     if (item) {
-      return [
-        { title: group.title, url: group.url },
-        item,
-      ]
+      return [{ title: group.title, url: group.url }, item]
     }
   }
 
@@ -219,7 +231,9 @@ export default function DashboardLayout() {
                       <React.Fragment key={`${item.url}-${item.title}`}>
                         <BreadcrumbItem
                           className={
-                            index === 0 && !isLast ? "hidden md:block" : undefined
+                            index === 0 && !isLast
+                              ? "hidden md:block"
+                              : undefined
                           }
                         >
                           {isLast ? (

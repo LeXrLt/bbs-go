@@ -1,4 +1,6 @@
+import { redirect } from "react-router"
 import { UserFollowedClientPage } from "@/components/user/user-profile-client-page"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import { localizedTitle, rootDataFromMatches, userMeta } from "@/lib/seo"
 
 import {
@@ -12,10 +14,12 @@ type RouteArgs = {
 }
 
 export async function loader({ request, params }: RouteArgs) {
+  if (!SHOW_COMMUNITY_EXTRAS) throw redirect(`/user/${params.userId || ""}`)
   return loadUserProfileRouteData({ request, userId: params.userId || "" })
 }
 
 export async function clientLoader({ params }: RouteArgs) {
+  if (!SHOW_COMMUNITY_EXTRAS) throw redirect(`/user/${params.userId || ""}`)
   return loadUserProfileRouteData({ userId: params.userId || "" })
 }
 

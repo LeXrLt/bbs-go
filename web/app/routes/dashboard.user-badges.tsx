@@ -1,5 +1,7 @@
 "use client"
 
+import { redirect } from "react-router"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import {
   DashboardDataPage,
   type DashboardDataPageConfig,
@@ -7,6 +9,16 @@ import {
 import * as dashboardData from "@/components/dashboard/data/dashboard-data-route-utils"
 import { useI18n } from "@/lib/i18n/provider"
 import { PERMISSIONS } from "@/lib/auth/permissions.generated"
+
+export function loader() {
+  if (!SHOW_COMMUNITY_EXTRAS) throw redirect("/dashboard")
+  return null
+}
+
+export function clientLoader() {
+  if (!SHOW_COMMUNITY_EXTRAS) throw redirect("/dashboard")
+  return null
+}
 
 export default function DashboardUserBadgesRoute() {
   const { t } = useI18n()

@@ -10,6 +10,7 @@ import type { TaskGroupInfo, TaskInfo } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n/provider"
 import { useCurrentUser } from "@/components/app/app-provider"
 import { useToastActions } from "@/lib/toast"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import { cn } from "@/lib/utils"
 
 function isCompleted(task: TaskInfo) {
@@ -264,7 +265,7 @@ function TaskCard({ task }: { task: TaskInfo }) {
                 {t("user.tasks.reward.exp", { exp: task.exp })}
               </RewardItem>
             ) : null}
-            {task.badgeId ? (
+            {SHOW_COMMUNITY_EXTRAS && task.badgeId ? (
               <RewardItem icon={<Medal className="h-3.5 w-3.5" />}>
                 {t("user.tasks.reward.badge")}
               </RewardItem>

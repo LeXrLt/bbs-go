@@ -23,6 +23,7 @@ import { useCurrentUser } from "@/components/app/app-provider"
 import { userHasPermission } from "@/lib/auth/roles"
 import { useI18n } from "@/lib/i18n/provider"
 import { PERMISSIONS } from "@/lib/auth/permissions.generated"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const currentUser = useCurrentUser()
@@ -93,11 +94,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             url: "/dashboard/users",
             permission: PERMISSIONS.DASHBOARD_USER_VIEW,
           },
-          {
-            title: t("dashboard.nav.userBadges"),
-            url: "/dashboard/user-badges",
-            permission: PERMISSIONS.DASHBOARD_USER_BADGE_VIEW,
-          },
+          ...(!SHOW_COMMUNITY_EXTRAS
+            ? []
+            : [
+                {
+                  title: t("dashboard.nav.userBadges"),
+                  url: "/dashboard/user-badges",
+                  permission: PERMISSIONS.DASHBOARD_USER_BADGE_VIEW,
+                },
+              ]),
           {
             title: t("dashboard.nav.userExpLogs"),
             url: "/dashboard/user-exp-logs",
@@ -117,15 +122,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       {
         title: t("dashboard.nav.growth"),
-        url: "/dashboard/badges",
+        url: SHOW_COMMUNITY_EXTRAS ? "/dashboard/badges" : "/dashboard/levels",
         icon: BadgeIcon,
-        permission: PERMISSIONS.DASHBOARD_BADGE_VIEW,
+        permission: SHOW_COMMUNITY_EXTRAS
+          ? PERMISSIONS.DASHBOARD_BADGE_VIEW
+          : PERMISSIONS.DASHBOARD_LEVEL_VIEW,
         items: [
-          {
-            title: t("dashboard.nav.badges"),
-            url: "/dashboard/badges",
-            permission: PERMISSIONS.DASHBOARD_BADGE_VIEW,
-          },
+          ...(!SHOW_COMMUNITY_EXTRAS
+            ? []
+            : [
+                {
+                  title: t("dashboard.nav.badges"),
+                  url: "/dashboard/badges",
+                  permission: PERMISSIONS.DASHBOARD_BADGE_VIEW,
+                },
+              ]),
           {
             title: t("dashboard.nav.levels"),
             url: "/dashboard/levels",

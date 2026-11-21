@@ -14,6 +14,7 @@ import {
 import { adminGet, adminPostJson, type AdminRecord } from "@/lib/api/admin"
 import { PERMISSIONS } from "@/lib/auth/permissions.generated"
 import { userHasPermission } from "@/lib/auth/roles"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 import { useI18n } from "@/lib/i18n/provider"
 import { msgError, msgSuccess } from "@/lib/toast"
 import { cn } from "@/lib/utils"
@@ -1685,7 +1686,9 @@ function NotificationSettings({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {rows
+              .filter((row) => SHOW_COMMUNITY_EXTRAS || row.key !== "userBadgeGrant")
+              .map((row) => (
               <tr
                 key={row.key}
                 className="border-t transition-colors hover:bg-muted/30"
@@ -1706,7 +1709,7 @@ function NotificationSettings({
                   />
                 </td>
               </tr>
-            ))}
+              ))}
           </tbody>
         </table>
       </div>

@@ -7,9 +7,20 @@ import {
 import * as dashboardData from "@/components/dashboard/data/dashboard-data-route-utils"
 import { useI18n } from "@/lib/i18n/provider"
 import { PERMISSIONS } from "@/lib/auth/permissions.generated"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 export default function DashboardTasksRoute() {
   const { t } = useI18n()
+  const badgeField: NonNullable<DashboardDataPageConfig["formFields"]>[number] =
+    {
+      name: "badgeId",
+      label: dashboardData.label(t, "badgeId"),
+      type: "select",
+      options: [{ label: t("dashboard.task.noBadge"), value: 0 }],
+      optionsEndpoint: "/api/admin/badge/list",
+      optionLabel: (record) => String(record.title || record.name || record.id),
+      optionValue: (record) => record.id as number,
+    }
   const config: DashboardDataPageConfig = {
     title: dashboardData.title(t, "tasks"),
     description: dashboardData.desc(t, "tasks"),
@@ -66,7 +77,9 @@ export default function DashboardTasksRoute() {
       { key: "period", label: dashboardData.label(t, "period") },
       { key: "score", label: dashboardData.label(t, "score") },
       { key: "exp", label: dashboardData.label(t, "exp") },
-      { key: "badgeId", label: dashboardData.label(t, "badgeId") },
+      ...(SHOW_COMMUNITY_EXTRAS
+        ? [{ key: "badgeId", label: dashboardData.label(t, "badgeId") }]
+        : []),
       { key: "eventCount", label: dashboardData.label(t, "eventCount") },
       {
         key: "maxFinishCount",
@@ -120,16 +133,7 @@ export default function DashboardTasksRoute() {
         min: 0,
         step: 1,
       },
-      {
-        name: "badgeId",
-        label: dashboardData.label(t, "badgeId"),
-        type: "select",
-        options: [{ label: t("dashboard.task.noBadge"), value: 0 }],
-        optionsEndpoint: "/api/admin/badge/list",
-        optionLabel: (record) =>
-          String(record.title || record.name || record.id),
-        optionValue: (record) => record.id as number,
-      },
+      ...(SHOW_COMMUNITY_EXTRAS ? [badgeField] : []),
       {
         name: "period",
         label: dashboardData.label(t, "period"),

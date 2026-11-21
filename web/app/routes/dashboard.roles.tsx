@@ -30,6 +30,7 @@ import * as dashboardData from "@/components/dashboard/data/dashboard-data-route
 import { useI18n } from "@/lib/i18n/provider"
 import { PERMISSIONS } from "@/lib/auth/permissions.generated"
 import { msgSuccess } from "@/lib/toast"
+import { SHOW_COMMUNITY_EXTRAS } from "@/lib/features/community-extras"
 
 type RolePermissionRecord = AdminRecord & {
   id?: string | number
@@ -225,10 +226,19 @@ function RolePermissionDrawer({
 
   const groups = React.useMemo(() => {
     const grouped = new Map<string, RolePermissionRecord[]>()
-    permissions.forEach((permission) => {
-      const groupName = String(permission.groupName || "-")
-      grouped.set(groupName, [...(grouped.get(groupName) || []), permission])
-    })
+    permissions
+      .filter(
+        (permission) =>
+          SHOW_COMMUNITY_EXTRAS ||
+          !(
+            String(permission.code || "").startsWith("dashboard.badge.") ||
+            permission.code === PERMISSIONS.DASHBOARD_USER_BADGE_VIEW
+          )
+      )
+      .forEach((permission) => {
+        const groupName = String(permission.groupName || "-")
+        grouped.set(groupName, [...(grouped.get(groupName) || []), permission])
+      })
     return Array.from(grouped, ([name, items]) => ({ name, items }))
   }, [permissions])
 
