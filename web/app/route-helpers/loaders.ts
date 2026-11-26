@@ -77,24 +77,14 @@ async function loadTag(
   return apiFetch<Tag>(`/api/tag/${tagId}`, { request }).catch(() => null)
 }
 
-async function getCategoryFilters({
-  request,
-  categoryId,
-}: {
-  request?: Request
-  categoryId: number
-}) {
-  if (!request || categoryId <= 0) return {}
+function getCategoryFilters(request?: Request, category?: Category | null) {
+  if (!request || !category) return {}
 
   const filters = getTopicFilters(request)
-  const category = await loadCategory(request, categoryId)
-  if (category?.type === "qa") {
+  if (category.type === "qa") {
     return { qaStatus: filters.qaStatus }
   }
-  if (category) {
-    return { sort: filters.sort || "latestEdit" }
-  }
-  return {}
+  return { sort: filters.sort || "latestEdit" }
 }
 
 export async function loadCategories(request?: Request) {
@@ -231,7 +221,7 @@ export async function loadCategoryRouteData({
     ? new URL(request?.url || "http://local").searchParams.get("roleAfter") ||
       ""
     : ""
-  const filters = await getCategoryFilters({ request, categoryId })
+  const filters = getCategoryFilters(request, category)
   const [topics, categories] = await Promise.all([
     loadTopics({ request, categoryId, roleName, roleAfter, ...filters }),
     loadCategories(request),

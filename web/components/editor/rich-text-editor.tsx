@@ -5,7 +5,8 @@ import { createPortal } from "react-dom"
 import { Extension, Node, mergeAttributes, type CommandProps, type Editor, type Range } from "@tiptap/core"
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, ReactRenderer, type ReactNodeViewProps, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
-import Link from "@tiptap/extension-link"
+import Link, { isAllowedUri } from "@tiptap/extension-link"
+import { Popover } from "radix-ui"
 import Placeholder from "@tiptap/extension-placeholder"
 import Underline from "@tiptap/extension-underline"
 import TextAlign from "@tiptap/extension-text-align"
@@ -756,15 +757,12 @@ function ToolbarButton({
   disabled,
   children,
   onClick,
-}: {
-  title: string
+  ...buttonProps
+}: React.ComponentProps<"button"> & {
   active?: boolean
-  disabled?: boolean
-  children: React.ReactNode
-  onClick: () => void
 }) {
   return (
-    <button type="button" className={cn("m-editor-toolbar-button", active && "is-active")} title={title} disabled={disabled} onClick={onClick}>
+    <button type="button" className={cn("m-editor-toolbar-button", active && "is-active")} title={title} disabled={disabled} onMouseDown={(event) => event.preventDefault()} onClick={onClick} {...buttonProps}>
       {children}
     </button>
   )
@@ -928,6 +926,10 @@ export function RichTextEditor({
   const [linkOpen, setLinkOpen] = React.useState(false)
   const [linkText, setLinkText] = React.useState("")
   const [linkUrl, setLinkUrl] = React.useState("")
+  const linkSelectionRef = React.useRef<Range | null>(null)
+  const linkUrlInputRef = React.useRef<HTMLInputElement>(null)
+  const linkTextId = React.useId()
+  const linkUrlId = React.useId()
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -940,6 +942,7 @@ export function RichTextEditor({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+        defaultProtocol: "https",
         HTMLAttributes: {
           target: "_blank",
           rel: "noopener noreferrer",
@@ -1042,25 +1045,40 @@ export function RichTextEditor({
 
   function openLinkDialog() {
     if (!editor) return
-    const previousUrl = editor.getAttributes("link").href as string | undefined
-    const selectedText = editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to, " ")
-    setLinkText(selectedText)
-    setLinkUrl(previousUrl || "")
-    setLinkOpen(true)
+    editor.chain().extendMarkRange("link").run()
+    const { from, to } = editor.state.selection
+    linkSelectionRef.current = { from, to }
+    setLinkText(editor.state.doc.textBetween(from, to, " "))
+    setLinkUrl((editor.getAttributes("link").href as string | undefined) || "")
   }
 
   function applyLink() {
-    if (!editor) return
-    if (!linkUrl) {
-      editor.chain().focus().extendMarkRange("link").unsetLink().run()
-      setLinkOpen(false)
-      return
-    }
-    if (linkText && editor.state.selection.empty) {
-      editor.chain().focus().insertContent(`<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${linkText}</a>`).run()
+    if (!editor || !linkSelectionRef.current) return
+    const href = linkUrl.trim()
+    const selection = linkSelectionRef.current
+    const chain = editor.chain().focus().setTextSelection(selection)
+    if (!href) {
+      chain.unsetLink().run()
     } else {
-      editor.chain().focus().extendMarkRange("link").setLink({ href: linkUrl }).run()
+      if (!isAllowedUri(href)) return
+      const selectedText = editor.state.doc.textBetween(selection.from, selection.to, " ")
+      if (linkText && linkText === selectedText) {
+        chain.setLink({ href }).run()
+      } else {
+        // Insert a text node so quotes and HTML in either field stay literal.
+        chain.insertContent({
+          type: "text",
+          text: linkText || href,
+          marks: [{ type: "link", attrs: { href } }],
+        }).run()
+      }
     }
+    setLinkOpen(false)
+  }
+
+  function removeLink() {
+    if (!editor || !linkSelectionRef.current) return
+    editor.chain().focus().setTextSelection(linkSelectionRef.current).unsetLink().run()
     setLinkOpen(false)
   }
 
@@ -1128,28 +1146,47 @@ export function RichTextEditor({
             <Code2 size={16} />
           </ToolbarButton>
           <ToolbarDivider />
-          <div className="link-button">
-            <ToolbarButton title={toolbar.link} active={editor?.isActive("link")} onClick={openLinkDialog}>
-              <LinkIcon size={16} />
-            </ToolbarButton>
-            {linkOpen ? (
-              <div className="link-dialog-content">
+          <Popover.Root open={linkOpen} onOpenChange={setLinkOpen}>
+            <Popover.Trigger asChild>
+              <ToolbarButton title={toolbar.link} active={editor?.isActive("link")} disabled={!editor} onClick={openLinkDialog}>
+                <LinkIcon size={16} />
+              </ToolbarButton>
+            </Popover.Trigger>
+            <Popover.Portal container={containerRef.current}>
+              <Popover.Content
+                className="link-dialog-content"
+                align="start"
+                sideOffset={6}
+                collisionPadding={8}
+                aria-label={toolbar.link}
+                onOpenAutoFocus={(event) => {
+                  event.preventDefault()
+                  linkUrlInputRef.current?.focus()
+                }}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && event.target instanceof HTMLInputElement && !event.nativeEvent.isComposing) {
+                    event.preventDefault()
+                    applyLink()
+                  }
+                }}
+              >
                 <div className="link-input-group">
-                  <label>{labels.linkDialog.textLabel}</label>
-                  <input value={linkText} placeholder={labels.linkDialog.textPlaceholder} onChange={(event) => setLinkText(event.currentTarget.value)} />
+                  <label htmlFor={linkTextId}>{labels.linkDialog.textLabel}</label>
+                  <input id={linkTextId} value={linkText} placeholder={labels.linkDialog.textPlaceholder} onChange={(event) => setLinkText(event.currentTarget.value)} />
                 </div>
                 <div className="link-input-group">
-                  <label>{labels.linkDialog.urlLabel}</label>
-                  <input value={linkUrl} placeholder={labels.linkDialog.urlPlaceholder} onChange={(event) => setLinkUrl(event.currentTarget.value)} />
+                  <label htmlFor={linkUrlId}>{labels.linkDialog.urlLabel}</label>
+                  <input ref={linkUrlInputRef} id={linkUrlId} value={linkUrl} placeholder={labels.linkDialog.urlPlaceholder} onChange={(event) => setLinkUrl(event.currentTarget.value)} />
                 </div>
                 <div className="link-dialog-actions">
                   <button type="button" className="btn-primary" onClick={applyLink}>{labels.linkDialog.confirm}</button>
-                  <button type="button" className="btn-danger" onClick={() => { editor?.chain().focus().extendMarkRange("link").unsetLink().run(); setLinkOpen(false) }}>{labels.linkDialog.remove}</button>
+                  <button type="button" className="btn-danger" onClick={removeLink}>{labels.linkDialog.remove}</button>
                   <button type="button" className="btn-secondary" onClick={() => setLinkOpen(false)}>{labels.linkDialog.cancel}</button>
                 </div>
-              </div>
-            ) : null}
-          </div>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
           <div className="image-upload-button">
             <ToolbarButton title={toolbar.image} disabled={!editor || uploading} onClick={() => fileInputRef.current?.click()}>
               <ImageIcon size={16} />

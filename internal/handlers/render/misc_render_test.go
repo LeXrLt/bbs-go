@@ -111,3 +111,44 @@ func TestNonTopicContentStillRejectsIframe(t *testing.T) {
 		t.Fatalf("non-topic content must not allow iframe: %s", content)
 	}
 }
+
+func TestHandleTopicHtmlContentPreservesEditorColors(t *testing.T) {
+	content, _ := handleTopicHtmlContent(`<p><span style="background-color: rgb(255, 204, 204);">test</span> <span style="color: #0070c0; background-color: #ccffff;">test</span></p>`)
+	for _, expected := range []string{"background-color: rgb(255, 204, 204)", "color: #0070c0", "background-color: #ccffff"} {
+		if !strings.Contains(content, expected) {
+			t.Fatalf("editor color %q was removed: %s", expected, content)
+		}
+	}
+}
+
+func TestEditorColorsRejectUnsafeStyles(t *testing.T) {
+	for _, value := range []string{
+		`color: expression(alert(1)); background-color: url(https://example.com/track)`,
+		`color: url(javascript:alert(1)); background-color: expression(alert(1))`,
+		`background: url(https://example.com/track); position: fixed; inset: 0; z-index: 99999`,
+	} {
+		content, _ := handleTopicHtmlContent(`<p><span style="` + value + `" onclick="alert(1)">test</span></p>`)
+		for _, forbidden := range []string{"style=", "onclick", "expression", "url(", "position", "z-index"} {
+			if strings.Contains(content, forbidden) {
+				t.Fatalf("unsafe style %q survived: %s", value, content)
+			}
+		}
+		if !strings.Contains(content, "test") {
+			t.Fatalf("sanitizing styles must preserve text: %s", content)
+		}
+	}
+}
+
+func TestEditorColorsPreserveSafePropertiesAlongsideUnsafeStyles(t *testing.T) {
+	content, _ := handleTopicHtmlContent(`<p><span style="color: rgb(0, 112, 192); background-color: #ffcccc; background-image: url(https://example.com/track); position: fixed;" onmouseover="alert(1)">test</span></p>`)
+	for _, expected := range []string{"color: rgb(0, 112, 192)", "background-color: #ffcccc", "test"} {
+		if !strings.Contains(content, expected) {
+			t.Fatalf("safe content %q was removed: %s", expected, content)
+		}
+	}
+	for _, forbidden := range []string{"background-image", "position", "onmouseover", "example.com", "alert"} {
+		if strings.Contains(content, forbidden) {
+			t.Fatalf("unsafe content %q survived: %s", forbidden, content)
+		}
+	}
+}

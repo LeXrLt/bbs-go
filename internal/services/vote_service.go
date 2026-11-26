@@ -194,6 +194,9 @@ func (s *voteService) Cast(userId int64, form req.VoteCastReq) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(vote, "id = ?", form.VoteId).Error; err != nil {
 			return errors.New(locales.Get("vote.not_found"))
 		}
+		if topic := repositories.TopicRepository.Get(tx, vote.TopicId); topic == nil || topic.Status != constants.StatusOk {
+			return errors.New(locales.Get("vote.not_found"))
+		}
 		if dates.NowTimestamp() > vote.ExpiredAt {
 			return errors.New(locales.Get("vote.expired"))
 		}

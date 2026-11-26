@@ -202,6 +202,7 @@ const zhCN = {
       statusNormal: "正常",
       statusDeleted: "已删除",
       statusReview: "待审核",
+      statusWithdrawn: "已撤回",
       qaSolved: "已解决",
       qaUnsolved: "未解决",
       voteMeta: "{optionCount}选{voteNum}",
@@ -978,6 +979,8 @@ const zhCN = {
     },
     topicManageMenu: {
       edit: "修改",
+      withdraw: "撤回",
+      confirmWithdraw: "撤回后帖子将暂时不可见，您可以重新编辑并发布。原链接和互动记录会保留。确定撤回吗？",
       delete: "删除",
       recommend: "推荐",
       cancelRecommend: "取消推荐",
@@ -1292,6 +1295,8 @@ const zhCN = {
       },
       detail: {
         pending: "帖子正在审核中",
+        withdrawn: "已撤回",
+        reEdit: "重新编辑",
         publishedAt: "发布于",
         qaSolved: "已解决",
         qaUnsolved: "待解决",
@@ -1398,6 +1403,9 @@ const zhCN = {
       },
       edit: {
         title: "修改帖子",
+        republishTitle: "重新编辑帖子",
+        republishBtn: "重新发布",
+        republishSuccess: "重新发布成功",
         pageTitle: "修改话题",
         titlePlaceholder: "请输入帖子标题",
         contentPlaceholder: "请输入你要发表的内容...",

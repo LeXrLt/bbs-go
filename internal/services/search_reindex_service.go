@@ -70,7 +70,7 @@ func (s *searchReindexService) run() {
 		}
 	}()
 
-	topicTotal := TopicService.Count(sqls.NewCnd().Where("status <> ?", constants.StatusDeleted))
+	topicTotal := TopicService.Count(sqls.NewCnd().Where("status NOT IN ?", []int{constants.StatusDeleted, constants.StatusWithdrawn}))
 	var articleTotal int64
 	sqls.DB().Model(&models.Article{}).Where("status <> ?", constants.StatusDeleted).Count(&articleTotal)
 	var userTotal int64
@@ -79,7 +79,7 @@ func (s *searchReindexService) run() {
 
 	TopicService.ScanDesc(func(topics []models.Topic) {
 		for _, topic := range topics {
-			if topic.Status == constants.StatusDeleted {
+			if topic.Status == constants.StatusDeleted || topic.Status == constants.StatusWithdrawn {
 				continue
 			}
 			search.UpdateTopicIndex(&topic)

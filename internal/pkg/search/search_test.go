@@ -52,6 +52,20 @@ func TestSearchTopicScopesResultsToTopics(t *testing.T) {
 	}
 }
 
+func TestSearchTopicExcludesWithdrawnIndexDocuments(t *testing.T) {
+	setupTestIndex(t)
+	mustIndex(t, searchDocID(EntityTypeTopic, 1), &TopicDocument{
+		Type: EntityTypeTopic, Id: 1, Title: "withdrawn secret", Status: 3,
+	})
+	mustIndex(t, searchDocID(EntityTypeTopic, 2), &TopicDocument{
+		Type: EntityTypeTopic, Id: 2, Title: "visible secret", Status: 0,
+	})
+	docs, _, err := SearchTopic("secret", 0, nil, 0, 1, 20)
+	if err != nil || len(docs) != 1 || docs[0].Id != 2 {
+		t.Fatalf("expected only visible document, got %+v (%v)", docs, err)
+	}
+}
+
 func TestSearchArticleFindsArticleFields(t *testing.T) {
 	setupTestIndex(t)
 

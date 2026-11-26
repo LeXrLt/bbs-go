@@ -26,6 +26,8 @@ import type {
 import { useI18n } from "@/lib/i18n/provider"
 import { useRouteData, useRouteSegment } from "@/lib/spa-route"
 import { useDocumentTitle } from "@/lib/use-document-title"
+import Link from "@/components/common/link"
+import { Button } from "@/components/ui/button"
 
 // Keep the side action bar available for a possible future restoration.
 const SHOW_TOPIC_SIDE_ACTION_BAR = false
@@ -64,6 +66,10 @@ export function TopicDetailClientPage({
     [initialTopic]
   )
   const load = React.useCallback(async (): Promise<TopicDetailData> => {
+    const topic = initialTopic || (await apiFetch<Topic>(`/api/topic/${id}`))
+    if (topic.status === 3) {
+      return { topic, comments: emptyComments, likeUsers: null, hideContent: null }
+    }
     const comments = apiFetch<PageData<Comment>>("/api/comment/comments", {
       params: { entityType: "topic", entityId: id },
     }).catch(() => emptyComments)
@@ -74,27 +80,9 @@ export function TopicDetailClientPage({
       params: { topicId: id },
     }).catch(() => null)
 
-    if (initialTopic) {
-      const [nextComments, nextLikeUsers, nextHideContent] = await Promise.all([
-        comments,
-        likeUsers,
-        hideContent,
-      ])
-      return {
-        topic: initialTopic,
-        comments: nextComments,
-        likeUsers: nextLikeUsers,
-        hideContent: nextHideContent,
-      }
-    }
-
-    const [topic, nextComments, nextLikeUsers, nextHideContent] =
-      await Promise.all([
-        apiFetch<Topic>(`/api/topic/${id}`),
-        comments,
-        likeUsers,
-        hideContent,
-      ])
+    const [nextComments, nextLikeUsers, nextHideContent] = await Promise.all([
+      comments, likeUsers, hideContent,
+    ])
 
     return {
       topic,
@@ -108,7 +96,7 @@ export function TopicDetailClientPage({
     load,
     initialData
   )
-  useDocumentTitle(data?.topic.title)
+  useDocumentTitle(data?.topic.status === 3 ? t("pages.topic.detail.withdrawn") : data?.topic.title)
 
   if (loading && !data)
     return (
@@ -124,6 +112,20 @@ export function TopicDetailClientPage({
     )
 
   const { topic, comments, likeUsers, hideContent } = data
+  if (topic.status === 3) {
+    return (
+      <MainShell>
+        <div className="main-content py-10">
+          <h1 className="text-xl font-semibold">{t("pages.topic.detail.withdrawn")}</h1>
+          {topic.canReEdit ? (
+            <Button asChild className="mt-5">
+              <Link href={`/topic/edit/${topic.id}`}>{t("pages.topic.detail.reEdit")}</Link>
+            </Button>
+          ) : null}
+        </div>
+      </MainShell>
+    )
+  }
   const currentUserRoles = currentUser?.roles || []
   const canAcceptAnswer =
     topic.type === 2 &&

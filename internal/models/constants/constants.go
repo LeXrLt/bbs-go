@@ -150,9 +150,10 @@ const (
 
 // 状态
 const (
-	StatusOk      = 0 // 正常
-	StatusDeleted = 1 // 删除
-	StatusReview  = 2 // 待审核
+	StatusOk        = 0 // 正常
+	StatusDeleted   = 1 // 删除
+	StatusReview    = 2 // 待审核
+	StatusWithdrawn = 3 // 作者撤回的普通帖子
 )
 
 // 角色类型

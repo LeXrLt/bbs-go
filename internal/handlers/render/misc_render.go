@@ -33,6 +33,10 @@ var httpsIframeSrcPattern = regexp.MustCompile(`(?i)^https://[^\s]+$`)
 
 func xssProtection(htmlContent string, allowHTTPSIframe bool) string {
 	ugcProtection := bluemonday.UGCPolicy() // 用户生成内容模式
+	// Tiptap stores text and background colors on span elements. Validate each
+	// CSS property instead of allowing arbitrary inline styles.
+	ugcProtection.AllowAttrs("style").OnElements("span")
+	ugcProtection.AllowStyles("color", "background-color").OnElements("span")
 	ugcProtection.AllowAttrs("class").OnElements("code")
 	ugcProtection.AllowAttrs("start").OnElements("ol", "ul", "li")
 	if allowHTTPSIframe {

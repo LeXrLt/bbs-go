@@ -284,6 +284,46 @@ func TestTopicMarkReadIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestWithdrawnTopicDetailDoesNotExposeContent(t *testing.T) {
+	db := setupTopicHandlerCategoryTestDB(t)
+	idcodec.Init(1)
+	topic := models.Topic{UserId: 2, Type: constants.TopicTypeTopic, Status: constants.StatusWithdrawn,
+		Title: "private title", Content: "private body"}
+	if err := db.Create(&topic).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, viewer := range []struct {
+		name    string
+		user    *models.User
+		canEdit bool
+	}{
+		{"anonymous", nil, false},
+		{"other", &models.User{Model: models.Model{Id: 3}}, false},
+		{"owner", &models.User{Model: models.Model{Id: 2}}, true},
+	} {
+		t.Run(viewer.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(w)
+			ctx.Params = gin.Params{{Key: "id", Value: idcodec.Encode(topic.Id)}}
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/topic/"+idcodec.Encode(topic.Id), nil)
+			if viewer.user != nil {
+				common.SetCurrentUser(ctx, viewer.user)
+			}
+			TopicDetail(ctx)
+			var response struct {
+				Success bool           `json:"success"`
+				Data    map[string]any `json:"data"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if !response.Success || len(response.Data) != 3 || response.Data["status"] != float64(constants.StatusWithdrawn) || response.Data["canReEdit"] != viewer.canEdit {
+				t.Fatalf("unexpected detail response: %s", w.Body.String())
+			}
+		})
+	}
+}
+
 func mustCreateTopicHandlerCategory(t *testing.T, db *gorm.DB, category *models.Category) {
 	t.Helper()
 

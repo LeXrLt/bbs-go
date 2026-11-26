@@ -23,6 +23,9 @@ import { userHasPermission } from "@/lib/auth/roles"
 import { useI18n } from "@/lib/i18n/provider"
 import { msg, useToastActions } from "@/lib/toast"
 
+// 待业务确认后再开放撤回入口。
+const SHOW_TOPIC_WITHDRAW = false
+
 function actionText(text: string, action: string) {
   return text.replace("{action}", action)
 }
@@ -45,6 +48,7 @@ export function TopicManageMenu({
   const isTopicOwner = Boolean(currentUser && currentUser.id === topic.user.id)
   const canReport = Boolean(currentUser && !isTopicOwner)
   const canEdit = isTopicOwner && topic.type === 0
+  const canWithdraw = SHOW_TOPIC_WITHDRAW && canEdit && topic.status === 0
   const canDelete =
     isTopicOwner ||
     userHasPermission(currentUser, PERMISSIONS.DASHBOARD_TOPIC_DELETE)
@@ -97,6 +101,23 @@ export function TopicManageMenu({
     } catch (error) {
       catchError(error)
     }
+  }
+
+  async function withdrawTopic() {
+    try {
+      await apiFetch<null>(`/api/topic/withdraw/${topic.id}`, { method: "POST" })
+      router.refresh()
+    } catch (error) {
+      catchError(error)
+    }
+  }
+
+  function confirmWithdrawTopic() {
+    setConfirmState({
+      description: t("component.topicManageMenu.confirmWithdraw"),
+      confirmText: t("component.topicManageMenu.withdraw"),
+      onConfirm: () => void withdrawTopic(),
+    })
   }
 
   function confirmDeleteTopic() {
@@ -205,6 +226,11 @@ export function TopicManageMenu({
               onSelect={() => router.push(`/topic/edit/${topic.id}`)}
             >
               {t("component.topicManageMenu.edit")}
+            </DropdownMenuItem>
+          ) : null}
+          {canWithdraw ? (
+            <DropdownMenuItem onSelect={confirmWithdrawTopic}>
+              {t("component.topicManageMenu.withdraw")}
             </DropdownMenuItem>
           ) : null}
           {canDelete ? (

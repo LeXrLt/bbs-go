@@ -150,7 +150,11 @@ func TopicEditForm(ctx *gin.Context) {
 	}
 
 	topic := services.TopicService.Get(topicId)
-	if topic == nil || topic.Status != constants.StatusOk {
+	if topic == nil || (topic.Status != constants.StatusOk && topic.Status != constants.StatusWithdrawn) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
+		return
+	}
+	if topic.Status == constants.StatusWithdrawn && (topic.Type != constants.TopicTypeTopic || topic.UserId != user.Id) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
 		return
 	}
@@ -177,6 +181,7 @@ func TopicEditForm(ctx *gin.Context) {
 
 	ginx.WriteJSON(ctx, map[string]any{
 		"id":          idcodec.Encode(topic.Id),
+		"status":      topic.Status,
 		"type":        topic.Type,
 		"categoryId":  topic.CategoryId,
 		"title":       topic.Title,
@@ -200,7 +205,11 @@ func TopicEdit(ctx *gin.Context) {
 	}
 
 	topic := services.TopicService.Get(topicId)
-	if topic == nil || topic.Status != constants.StatusOk {
+	if topic == nil || (topic.Status != constants.StatusOk && topic.Status != constants.StatusWithdrawn) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
+		return
+	}
+	if topic.Status == constants.StatusWithdrawn && (topic.Type != constants.TopicTypeTopic || topic.UserId != user.Id) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
 		return
 	}
@@ -227,6 +236,19 @@ func TopicEdit(ctx *gin.Context) {
 	}
 	ginx.WriteJSON(ctx, render.BuildSimpleTopic(topic))
 
+}
+
+func TopicWithdraw(ctx *gin.Context) {
+	user := common.GetCurrentUser(ctx)
+	if err := services.UserService.CheckPostStatus(user); err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+	if err := services.TopicService.Withdraw(idcodec.Decode(ctx.Param("id")), user.Id); err != nil {
+		ginx.WriteJSON(ctx, err)
+		return
+	}
+	ginx.WriteJSON(ctx, nil)
 }
 
 func TopicRemove(ctx *gin.Context) {
@@ -296,6 +318,13 @@ func TopicDetail(ctx *gin.Context) {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
 		return
 	}
+	if topic.Status == constants.StatusWithdrawn {
+		ginx.WriteJSON(ctx, map[string]any{
+			"id": idcodec.Encode(topic.Id), "status": constants.StatusWithdrawn,
+			"canReEdit": userIsTopicAuthor(ctx, topic.UserId),
+		})
+		return
+	}
 
 	// 审核中文章控制展示
 	user := common.GetCurrentUser(ctx)
@@ -322,6 +351,11 @@ func TopicDetail(ctx *gin.Context) {
 
 }
 
+func userIsTopicAuthor(ctx *gin.Context, userId int64) bool {
+	user := common.GetCurrentUser(ctx)
+	return user != nil && user.Id == userId
+}
+
 func TopicMarkRead(ctx *gin.Context) {
 	user, err := common.CheckLogin(ctx)
 	if err != nil {
@@ -331,7 +365,7 @@ func TopicMarkRead(ctx *gin.Context) {
 
 	topicId := idcodec.Decode(ctx.Param("id"))
 	topic := services.TopicService.Get(topicId)
-	if topic == nil || topic.Status == constants.StatusDeleted {
+	if topic == nil || topic.Status == constants.StatusDeleted || topic.Status == constants.StatusWithdrawn {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
 		return
 	}
@@ -352,6 +386,10 @@ func TopicRecentlikes(ctx *gin.Context) {
 	topicIdStr := ctx.Param("id")
 
 	topicId := idcodec.Decode(topicIdStr)
+	if topic := services.TopicService.Get(topicId); topic == nil || topic.Status != constants.StatusOk {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage(locales.Get("common.not_found")))
+		return
+	}
 	likes := services.UserLikeService.Recent(constants.EntityTopic, topicId, 5)
 	var users []resp.UserInfo
 	for _, like := range likes {

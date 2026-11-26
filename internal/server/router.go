@@ -96,6 +96,7 @@ func registerAPIRoutes(group *gin.RouterGroup) {
 	topicGroup.POST("/create", apiHandlers.TopicCreate)
 	topicGroup.GET("/edit/:id", apiHandlers.TopicEditForm)
 	topicGroup.POST("/edit/:id", apiHandlers.TopicEdit)
+	topicGroup.POST("/withdraw/:id", apiHandlers.TopicWithdraw)
 	topicGroup.POST("/delete/:id", apiHandlers.TopicRemove)
 	topicGroup.POST("/recommend/:id", apiHandlers.TopicRecommend)
 	topicGroup.GET("/recentlikes/:id", apiHandlers.TopicRecentlikes)
