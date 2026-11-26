@@ -110,6 +110,7 @@ function topicTypeLabel(t: ReturnType<typeof useI18n>["t"], type?: number) {
 function topicStatusLabel(t: ReturnType<typeof useI18n>["t"], status?: number) {
   if (status === 1) return t("dashboard.topicFeed.statusDeleted")
   if (status === 2) return t("dashboard.topicFeed.statusReview")
+  if (status === 3) return t("dashboard.topicFeed.statusWithdrawn")
   return t("dashboard.topicFeed.statusNormal")
 }
 
@@ -291,6 +292,7 @@ export default function DashboardTopicsRoute() {
               { label: t("dashboard.topicFeed.statusNormal"), value: 0 },
               { label: t("dashboard.topicFeed.statusDeleted"), value: 1 },
               { label: t("dashboard.topicFeed.statusReview"), value: 2 },
+              { label: t("dashboard.topicFeed.statusWithdrawn"), value: 3 },
             ]}
             onChange={(value) => updateFilter("status", value)}
           />
@@ -491,7 +493,8 @@ function TopicFeedItem({
           <TopicTag
             className={cn(
               topic.status === 1 && "border-destructive/30 text-destructive",
-              topic.status === 2 && "border-amber-400/40 text-amber-700"
+              topic.status === 2 && "border-amber-400/40 text-amber-700",
+              topic.status === 3 && "border-neutral-400/40 text-neutral-600"
             )}
           >
             {topicStatusLabel(t, topic.status)}

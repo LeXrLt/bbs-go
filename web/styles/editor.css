@@ -477,7 +477,6 @@
   }
 
   .m-editor-color-button,
-  .link-button,
   .image-upload-button {
     position: relative;
     display: inline-block;
@@ -494,9 +493,6 @@
 
   .link-dialog-content,
   .upload-progress {
-    position: absolute;
-    top: 100%;
-    left: 0;
     z-index: 1000;
     min-width: 220px;
     border: 1px solid var(--editor-border);
@@ -574,6 +570,10 @@
     cursor: pointer;
   }
 
+  .link-dialog-content {
+    max-width: calc(100vw - 16px);
+  }
+
   .link-input-group {
     display: flex;
     flex-direction: column;
@@ -618,6 +618,8 @@
   }
 
   .upload-progress {
+    position: absolute;
+    top: 100%;
     left: 50%;
     display: flex;
     min-width: max-content;

@@ -21,6 +21,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"bbs-go/internal/models"
 	"bbs-go/internal/repositories"
@@ -142,6 +143,9 @@ func (s *commentService) Publish(userId int64, form req.CreateCommentReq) (*mode
 	}
 
 	err := sqls.DB().Transaction(func(tx *gorm.DB) error {
+		if !s.parentAvailable(tx, form.EntityType, entityId, true) {
+			return errors.New(locales.Get("common.not_found"))
+		}
 		if err := repositories.CommentRepository.Create(tx, comment); err != nil {
 			return err
 		}
@@ -172,6 +176,33 @@ func (s *commentService) Publish(userId int64, form req.CreateCommentReq) (*mode
 	})
 
 	return comment, nil
+}
+
+func (s *commentService) ParentAvailable(entityType string, entityId int64) bool {
+	return s.parentAvailable(sqls.DB(), entityType, entityId, false)
+}
+
+func (s *commentService) parentAvailable(db *gorm.DB, entityType string, entityId int64, lock bool) bool {
+	for depth := 0; depth < 32 && entityId > 0; depth++ {
+		switch entityType {
+		case constants.EntityTopic:
+			var topic models.Topic
+			query := db
+			if lock {
+				query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+			}
+			return query.Select("id", "status").First(&topic, "id = ?", entityId).Error == nil && topic.Status != constants.StatusWithdrawn
+		case constants.EntityComment:
+			var parent models.Comment
+			if db.Select("id", "entity_type", "entity_id").First(&parent, "id = ?", entityId).Error != nil {
+				return false
+			}
+			entityType, entityId = parent.EntityType, parent.EntityId
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // onComment 评论被回复（二级评论）

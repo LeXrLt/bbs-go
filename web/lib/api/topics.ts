@@ -46,6 +46,7 @@ export type TopicEditData = Pick<
   contentType?: "html" | "markdown" | string
   hideContent?: string
   tags?: string[] | null
+  status?: number
 }
 
 export function getTopicEdit(id: string) {

@@ -23,6 +23,10 @@ func CommentComments(ctx *gin.Context) {
 		entityId      = common.GetID(ctx, "entityId")
 		currentUser   = common.GetCurrentUser(ctx)
 	)
+	if !services.CommentService.ParentAvailable(entityType, entityId) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage("comments not found"))
+		return
+	}
 	comments, cursor, hasMore := services.CommentService.GetComments(entityType, entityId, cursor)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildComments(comments, currentUser, true, false), strconv.FormatInt(cursor, 10), hasMore))
 
@@ -34,6 +38,10 @@ func CommentReplies(ctx *gin.Context) {
 		commentId, _ = params.GetInt64(ctx, "commentId")
 	)
 	currentUser := common.GetCurrentUser(ctx)
+	if !services.CommentService.ParentAvailable("comment", commentId) {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage("comments not found"))
+		return
+	}
 	comments, cursor, hasMore := services.CommentService.GetReplies(commentId, cursor, 10)
 	ginx.WriteJSON(ctx, ginx.CursorData(render.BuildComments(comments, currentUser, false, true), strconv.FormatInt(cursor, 10), hasMore))
 

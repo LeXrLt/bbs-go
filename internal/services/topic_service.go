@@ -105,7 +105,7 @@ func (s *topicService) Audit(id int64) error {
 	changed := false
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
 		result := ctx.Tx.Model(&models.Topic{}).
-			Where("id = ? AND status <> ?", id, constants.StatusOk).
+			Where("id = ? AND status = ?", id, constants.StatusReview).
 			UpdateColumn("status", constants.StatusOk)
 		if result.Error != nil {
 			return result.Error
@@ -120,6 +120,20 @@ func (s *topicService) Audit(id int64) error {
 		search.UpdateTopicIndex(s.Get(id))
 	}
 	return err
+}
+
+// Withdraw leaves the post and all of its related records intact.
+func (s *topicService) Withdraw(topicId, userId int64) error {
+	result := sqls.DB().Model(&models.Topic{}).
+		Where("id = ? AND user_id = ? AND type = ? AND status = ?", topicId, userId, constants.TopicTypeTopic, constants.StatusOk).
+		UpdateColumn("status", constants.StatusWithdrawn)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New(locales.Get("topic.no_permission"))
+	}
+	return search.DeleteTopicIndex(topicId)
 }
 
 // Delete 删除
@@ -201,7 +215,8 @@ func (s *topicService) Edit(userId, topicId int64, form req.EditTopicReq) error 
 		return errors.New(locales.Get("topic.category_not_found"))
 	}
 	topic := repositories.TopicRepository.Get(sqls.DB(), topicId)
-	if topic == nil {
+	if topic == nil || (topic.Status != constants.StatusOk && topic.Status != constants.StatusWithdrawn) ||
+		(topic.Status == constants.StatusWithdrawn && (topic.Type != constants.TopicTypeTopic || topic.UserId != userId)) {
 		return errors.New(locales.Get("common.not_found"))
 	}
 	// 编辑时附件数量校验（仅帖子类型）
@@ -225,20 +240,26 @@ func (s *topicService) Edit(userId, topicId int64, form req.EditTopicReq) error 
 	}
 
 	err := sqls.WithTransaction(func(ctx *sqls.TxContext) error {
+		columns := map[string]interface{}{
+			"category_id": form.CategoryId, "title": form.Title, "content": form.Content,
+			"hide_content": hideContent, "edit_time": dates.NowTimestamp(),
+		}
+		if topic.Status == constants.StatusWithdrawn {
+			columns["status"] = constants.StatusOk
+		}
+		result := ctx.Tx.Model(&models.Topic{}).
+			Where("id = ? AND status = ? AND user_id = ?", topicId, topic.Status, topic.UserId).
+			Updates(columns)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New(locales.Get("common.not_found"))
+		}
 		var (
 			tagIds []int64
 			err    error
 		)
-		if err = repositories.TopicRepository.Updates(ctx.Tx, topicId, map[string]interface{}{
-			"category_id":  form.CategoryId,
-			"title":        form.Title,
-			"content":      form.Content,
-			"hide_content": hideContent,
-			"edit_time":    dates.NowTimestamp(),
-		}); err != nil {
-			return err
-		}
-
 		// 创建帖子对应标签
 		if tagIds, err = repositories.TagRepository.GetOrCreates(ctx.Tx, form.Tags); err != nil {
 			return err

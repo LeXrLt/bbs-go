@@ -2,6 +2,7 @@ package api
 
 import (
 	"bbs-go/internal/handlers/render"
+	"bbs-go/internal/models/constants"
 	"bbs-go/internal/models/req"
 	"bbs-go/internal/pkg/common"
 	"bbs-go/internal/pkg/errs"
@@ -23,6 +24,10 @@ func VoteDetail(ctx *gin.Context) {
 
 	vote := services.VoteService.Get(voteId)
 	if vote == nil {
+		ginx.WriteJSON(ctx, ginx.ErrorMessage("vote not found"))
+		return
+	}
+	if topic := services.TopicService.Get(vote.TopicId); topic == nil || topic.Status == constants.StatusWithdrawn {
 		ginx.WriteJSON(ctx, ginx.ErrorMessage("vote not found"))
 		return
 	}

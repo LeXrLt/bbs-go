@@ -299,7 +299,7 @@ type Topic struct {
 	ViewCount         int64                 `gorm:"not null" json:"viewCount" form:"viewCount"`                                                                                                // 查看数量
 	CommentCount      int64                 `gorm:"not null" json:"commentCount" form:"commentCount"`                                                                                          // 跟帖数量
 	LikeCount         int64                 `gorm:"not null" json:"likeCount" form:"likeCount"`                                                                                                // 点赞数量
-	Status            int                   `gorm:"type:int;index:idx_topic_status;" json:"status" form:"status"`                                                                              // 状态：0：正常、1：删除
+	Status            int                   `gorm:"type:int;index:idx_topic_status;" json:"status" form:"status"`                                                                              // 状态：0：正常、1：删除、2：待审核、3：已撤回
 	LastCommentTime   int64                 `gorm:"index:idx_topic_last_comment_time" json:"lastCommentTime" form:"lastCommentTime"`                                                           // 最后回复时间
 	LastCommentUserId int64                 `json:"lastCommentUserId" form:"lastCommentUserId"`                                                                                                // 最后回复用户
 	UserAgent         string                `gorm:"size:1024" json:"userAgent" form:"userAgent"`                                                                                               // UserAgent

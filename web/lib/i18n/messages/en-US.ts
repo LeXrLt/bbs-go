@@ -202,6 +202,7 @@ const enUS = {
       statusNormal: "Normal",
       statusDeleted: "Deleted",
       statusReview: "Pending review",
+      statusWithdrawn: "Withdrawn",
       qaSolved: "Solved",
       qaUnsolved: "Unsolved",
       voteMeta: "{optionCount} options, choose up to {voteNum}",
@@ -996,6 +997,8 @@ const enUS = {
     },
     topicManageMenu: {
       edit: "Edit",
+      withdraw: "Withdraw",
+      confirmWithdraw: "This post will be hidden until you edit and republish it. Its link and interactions will be retained. Withdraw it?",
       delete: "Delete",
       recommend: "Feature",
       cancelRecommend: "Unfeature",
@@ -1314,6 +1317,8 @@ const enUS = {
       },
       detail: {
         pending: "This topic is under review",
+        withdrawn: "Withdrawn",
+        reEdit: "Edit and republish",
         publishedAt: "Published at",
         qaSolved: "Solved",
         qaUnsolved: "Unsolved",
@@ -1423,6 +1428,9 @@ const enUS = {
       },
       edit: {
         title: "Edit",
+        republishTitle: "Edit post to republish",
+        republishBtn: "Republish",
+        republishSuccess: "Post republished",
         pageTitle: "Edit",
         titlePlaceholder: "Enter a post title",
         contentPlaceholder: "Write your post...",

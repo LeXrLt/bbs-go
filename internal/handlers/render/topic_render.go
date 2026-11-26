@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bbs-go/internal/cache"
 	"bbs-go/internal/models"
 	"bbs-go/internal/models/constants"
 	"bbs-go/internal/models/resp"
@@ -120,6 +121,23 @@ func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int6
 	if len(topics) == 0 {
 		return nil
 	}
+	categoryIDs := make([]int64, 0, len(topics))
+	for _, topic := range topics {
+		if topic.CategoryId > 0 {
+			categoryIDs = append(categoryIDs, topic.CategoryId)
+		}
+	}
+	categoriesByID := make(map[int64]*models.Category)
+	if len(categoryIDs) > 0 {
+		categories := repositories.CategoryRepository.Find(sqls.DB(), sqls.NewCnd().In("id", categoryIDs))
+		for i := range categories {
+			categoriesByID[categories[i].Id] = &categories[i]
+		}
+	}
+	tagIDsByTopicID := make(map[int64][]int64)
+	for _, topicTag := range repositories.TopicTagRepository.Find(sqls.DB(), sqls.NewCnd().In("topic_id", topicIDs(topics)).Asc("id")) {
+		tagIDsByTopicID[topicTag.TopicId] = append(tagIDsByTopicID[topicTag.TopicId], topicTag.TagId)
+	}
 
 	var likedTopicIds []int64
 	currentUser := common.GetCurrentUser(ctx)
@@ -147,7 +165,9 @@ func buildSimpleTopics(ctx *gin.Context, topics []models.Topic, unreadAfter int6
 
 	var responses []resp.TopicResponse
 	for _, topic := range topics {
-		item := BuildSimpleTopic(&topic)
+		item := buildTopicFields(&topic, constants.IsTweetTopicType(topic.Type))
+		item.Category = BuildCategory(categoriesByID[topic.CategoryId])
+		item.Tags = BuildTags(cache.TagCache.GetList(tagIDsByTopicID[topic.Id]))
 		item.Liked = arrays.Contains(topic.Id, likedTopicIds)
 		if currentUser != nil && currentUser.Id != topic.UserId && !arrays.Contains(topic.Id, readTopicIDs) {
 			eventID := visibleEventIDs[topic.Id]
@@ -187,6 +207,19 @@ func topicUserIDs(topics []models.Topic) []int64 {
 }
 
 func _buildTopic(topic *models.Topic, buildContent bool) *resp.TopicResponse {
+	rsp := buildTopicFields(topic, buildContent)
+	if rsp == nil {
+		return nil
+	}
+	if topic.CategoryId > 0 {
+		category := services.CategoryService.Get(topic.CategoryId)
+		rsp.Category = BuildCategory(category)
+	}
+	rsp.Tags = BuildTags(services.TopicService.GetTopicTags(topic.Id))
+	return rsp
+}
+
+func buildTopicFields(topic *models.Topic, buildContent bool) *resp.TopicResponse {
 	if topic == nil {
 		return nil
 	}
@@ -240,14 +273,6 @@ func _buildTopic(topic *models.Topic, buildContent bool) *resp.TopicResponse {
 		}
 		rsp.ImageList = BuildImageList(topic.ImageList)
 	}
-
-	if topic.CategoryId > 0 {
-		category := services.CategoryService.Get(topic.CategoryId)
-		rsp.Category = BuildCategory(category)
-	}
-
-	tags := services.TopicService.GetTopicTags(topic.Id)
-	rsp.Tags = BuildTags(tags)
 
 	return rsp
 }

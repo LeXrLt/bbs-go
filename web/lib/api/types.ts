@@ -154,6 +154,7 @@ export interface Topic {
   favorited?: boolean
   ipLocation?: string
   status?: number
+  canReEdit?: boolean
   vote?: TopicVote | null
   acceptedCommentId?: number
   unread?: boolean

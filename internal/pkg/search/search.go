@@ -218,6 +218,10 @@ func SearchTopic(keyword string, categoryId int64, categoryIds []int64, timeRang
 	query := bleve.NewBooleanQuery()
 	query.AddMust(bleve.NewMatchAllQuery())
 	query.AddMust(typeQuery(EntityTypeTopic))
+	minStatus, maxStatus := float64(constants.StatusOk)-0.5, float64(constants.StatusOk)+0.5
+	statusQuery := bleve.NewNumericRangeQuery(&minStatus, &maxStatus)
+	statusQuery.SetField("status")
+	query.AddMust(statusQuery)
 
 	if strs.IsNotBlank(keyword) {
 		query.AddMust(keywordQuery(keyword, []string{"title", "content", "tags", "nickname"}))

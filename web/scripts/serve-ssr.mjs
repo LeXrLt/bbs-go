@@ -10,6 +10,7 @@ import {
   streamUpstreamBody,
   upstreamRequestHeaders,
 } from "./http-proxy.mjs"
+import { staticCacheControl } from "./static-cache.mjs"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const envPath = path.join(root, ".env")
@@ -119,6 +120,8 @@ createServer(async (req, res) => {
 
   if (filePath) {
     res.setHeader("Content-Type", contentType(filePath))
+    const cacheControl = staticCacheControl(url.pathname)
+    if (cacheControl) res.setHeader("Cache-Control", cacheControl)
     if (req.method === "HEAD") {
       res.end()
       return

@@ -196,7 +196,7 @@ export function TopicEditForm({
       })
       draft.clear()
       msg({
-        message: t("pages.topic.edit.success"),
+        message: t(topic.status === 3 ? "pages.topic.edit.republishSuccess" : "pages.topic.edit.success"),
         onClose() {
           router.push(`/topic/${form.id}`)
         },
@@ -210,7 +210,7 @@ export function TopicEditForm({
   return (
     <div className="publish-form">
       <div className="form-title">
-        <div className="form-title-name">{t("pages.topic.edit.title")}</div>
+        <div className="form-title-name">{t(topic.status === 3 ? "pages.topic.edit.republishTitle" : "pages.topic.edit.title")}</div>
         {draft.restored ? (
           <span className="text-xs text-muted-foreground" role="status">
             {t("component.composerDraft.restored")}
@@ -283,7 +283,7 @@ export function TopicEditForm({
           disabled={publishing || attachmentUploading}
           onClick={() => void submit()}
         >
-          {t("pages.topic.edit.submitBtn")}
+          {t(topic.status === 3 ? "pages.topic.edit.republishBtn" : "pages.topic.edit.submitBtn")}
         </Button>
       </div>
     </div>

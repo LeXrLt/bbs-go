@@ -265,6 +265,9 @@ export function topicMeta(
   topic: Topic | null | undefined,
   canonicalPath?: string
 ) {
+  if (topic?.status === 3) {
+    return contentMeta(config, { title: "已撤回", canonicalPath, noindex: true })
+  }
   const title = topic?.type === 1 ? topic?.content : topic?.title
   const image = topic?.imageList?.[0]?.url || topic?.imageList?.[0]?.preview
   return contentMeta(config, {
